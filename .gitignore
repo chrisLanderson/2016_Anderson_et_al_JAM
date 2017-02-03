@@ -1,0 +1,7 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+packrat/lib*/
+Anaconda-2.3.0-MacOSX-x86_64.sh
+anaconda/
