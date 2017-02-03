@@ -14,3 +14,9 @@ trunc*
 .Rprofile
 .kap*
 .DS_Store
+.kap*
+*.Rhis
+*.Rprof
+alpha*
+goods*
+.Rproj*
