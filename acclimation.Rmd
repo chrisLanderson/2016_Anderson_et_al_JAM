@@ -6,19 +6,23 @@ output: github_document
 
 ## Data Curation
 
-Raw data is provided in the github repository already, but need to download other files essential to the analysis, including the SILVA database (long download time). Additionally, here we 'unbundle' packages that are needed for the analysis with Packrat.
+Raw data is provided in the github repository already, but need to download other files essential to the analysis, including the SILVA v119 reference files. Additionally, here we 'unbundle' and install packages that are needed for the analysis with Packrat.
 
 ```{r}
- sessionInfo()
-# packrat::snapshot()
+# packrat::clean()
 # packrat::bundle()
 # packrat::unbundle()
+# sessionInfo()
+
+library(Biostrings)
+library(stringr)
+library(tidyverse)
 ```
 
 ```{r, engine="bash", results="hide"}
-tar -zxvf rumen.acclimation.tar.gz
+tar -zxvf rumen_acclimation.tar.gz
 
-wget http://www.mothur.org/w/images/2/27/Silva.nr_v119.tgz
+curl -LO 'http://www.mothur.org/w/images/2/27/Silva.nr_v119.tgz'
 tar -zxvf Silva.nr_v119.tgz
 rm -rf Silva.nr_v119.tgz silva.nr_v119.tax
 ```
@@ -28,15 +32,70 @@ rm -rf Silva.nr_v119.tgz silva.nr_v119.tax
 The code chunk below demulitplexes the sequencing library using the provided mapping file then trims off the reverse primer.  Subseqeuntly, we trim the seqeunces to a fixed length of 400 basepairs to improve OTU picking downstream. Finally, the sequences are reverse complemented.
 
 ```{r, engine="bash", results="hide"}
-split_libraries.py -m mapping.txt -f rumen.adaptation.fasta -b hamming_8 -l 0 -L 1000 -M 1 -o rumen_adaptation_demultiplex
+split_libraries.py -m mapping.txt -f rumen_acclimation.fasta -b hamming_8 -l 0 -L 1000 -M 1 -o demultiplex
 
-truncate_reverse_primer.py -f rumen_adaptation_demultiplex/seqs.fna -o rumen_adaptation_rev_primer -m mapping.txt -z truncate_only -M 2
+truncate_reverse_primer.py -f demultiplex/seqs.fna -o trunc_primer -m mapping.txt -z truncate_only -M 2
   
-mothur "#trim.seqs(fasta=rumen_adaptation_rev_primer/seqs_rev_primer_truncated.fna, minlength=400)"
+mothur "#trim.seqs(fasta=trunc_primer/seqs_rev_primer_truncated.fna, minlength=400)"
   
-fastx_trimmer -i rumen_adaptation_rev_primer/seqs_rev_primer_truncated.trim.fasta -l 400 -o rumen.adaptation.qc.trim.fasta
+fastx_trimmer -i trunc_primer/seqs_rev_primer_truncated.trim.fasta -l 400 -o qc_trim.fasta
  
-mothur "#reverse.seqs(fasta=rumen.adaptation.qc.trim.fasta)"
+mothur "#reverse.seqs(fasta=qc_trim.fasta)"
 ```
 
 ## OTU Picking
+
+Convert the fasta file headers from QIIME format to a format that works with UPARSE to generate the OTU table.
+
+```{r}
+seqs <- readDNAStringSet("qc_trim.rc.fasta", format = "fasta")
+ 
+names(seqs) <- str_extract(names(seqs), "R\\d+_\\d+") %>% 
+  str_split("_") %>%
+  map_chr(~str_c("rumen", .x[[2]], ";barcode=", .x[[1]]))
+ 
+writeXStringSet(seqs, "qc_trim_rc_format.fasta", format = "fasta")
+```
+ 
+Use UPARSE suite of tools to pick OTUs.
+
+```{r, engine="bash"}
+gzip -d gold.fasta.gz
+mkdir usearch_out
+
+usearch -derep_fulllength qc_trim_rc_format.fasta -sizeout -output usearch_out/derep.fasta
+
+usearch -sortbysize usearch_out/derep.fasta -minsize 2 -output usearch_out/derep_sort.fasta
+
+usearch -cluster_otus usearch_out/derep_sort.fasta -otus usearch_out/otus1.fasta
+
+usearch -uchime_ref usearch_out/otus1.fasta -db gold.fasta -strand plus -nonchimeras usearch_out/otus1_no_chim.fasta
+
+python usearch_python_scripts/fasta_number.py usearch_out/otus1_no_chim.fasta > usearch_out/otus2.fasta
+
+usearch -usearch_global qc_trim_rc_format.fasta -db usearch_out/otus2.fasta -strand plus -id 0.97 -uc usearch_out/otu_map.uc
+
+python usearch_python_scripts/uc2otutab.py usearch_out/otu_map.uc > otu_table.txt
+```
+
+## Assign Taxnomy
+
+```{r, engine="bash"}
+assign_taxonomy.py -i usearch_out/otus2.fasta -t anaconda/envs/rumenEnv/lib/python2.7/site-packages/qiime_default_reference/gg_13_8_otus/taxonomy/97_otu_taxonomy.txt -r anaconda/envs/rumenEnv/lib/python2.7/site-packages/qiime_default_reference/gg_13_8_otus/rep_set/97_otus.fasta -o assign_taxa -m mothur
+```
+
+Add the taxa to the OTU table with the column header "taxonomy" and output the resulting file to biom format.
+
+```{r, engine='bash'}
+awk 'NR==1; NR > 1 {print $0 | "sort"}' otu_table.txt > otu_table_sort.txt 
+
+sort assign_taxa/otus2_tax_assignments.txt > assign_taxa/otus2_tax_assignments.sort.txt
+
+{ printf '\ttaxonomy\t\t\n'; cat assign_taxa/otus2_tax_assignments_sort.txt ; }  > assign_taxa/otus2_tax_assignments_sort_label.txt
+
+paste otu_table_sort.txt <(cut -f 2 assign_taxa/otus2_tax_assignments_sort_label.txt) > otu_table_tax.txt
+
+rm otu_table_sort.txt
+
+biom convert --table-type "OTU table" -i otu_table_tax.txt -o otu_table_tax.biom --process-obs-metadata taxonomy --to-json
+```
