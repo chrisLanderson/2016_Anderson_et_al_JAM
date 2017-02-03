@@ -8,7 +8,7 @@ output: github_document
 
 Raw data is provided in the github repository already, but need to download other files essential to the analysis, including the SILVA v119 reference files. Additionally, here we 'unbundle' and install packages that are needed for the analysis with Packrat.
 
-```{r}
+```{r, results="hide"}
 # packrat::clean()
 # packrat::bundle()
 # packrat::unbundle()
@@ -89,7 +89,7 @@ Add the taxa to the OTU table with the column header "taxonomy" and output the r
 ```{r, engine='bash'}
 awk 'NR==1; NR > 1 {print $0 | "sort"}' otu_table.txt > otu_table_sort.txt 
 
-sort assign_taxa/otus2_tax_assignments.txt > assign_taxa/otus2_tax_assignments.sort.txt
+sort assign_taxa/otus2_tax_assignments.txt > assign_taxa/otus2_tax_assignments_sort.txt
 
 { printf '\ttaxonomy\t\t\n'; cat assign_taxa/otus2_tax_assignments_sort.txt ; }  > assign_taxa/otus2_tax_assignments_sort_label.txt
 
@@ -99,3 +99,84 @@ rm otu_table_sort.txt
 
 biom convert --table-type "OTU table" -i otu_table_tax.txt -o otu_table_tax.biom --process-obs-metadata taxonomy --to-json
 ```
+
+## Filter Reads
+
+Two of the samples were collected and sequenced twice. Unsure sure why, but lets remove the duplicate with the lower depth - samples R6 and R19.
+
+```{r, engine='bash'}
+printf "R6\nR19" > remove_samples.txt
+
+filter_samples_from_otu_table.py -i otu_table_tax.biom -o otu_table_tax_filter.biom --sample_id_fp remove_samples.txt --negate_sample_id_fp
+
+biom summarize-table -i otu_table_tax_filter.biom -o otu_table_tax_filter_summary.txt
+```
+
+Align the sequences using the SILVA reference within mothur and view the alignment summary.
+
+```{r, engine='bash', results='hide'}
+mothur "#align.seqs(fasta=usearch_out/otus2.fasta, reference=silva.nr_v119.align)"
+
+mv usearch_out/otus2.align ./
+
+mothur "#summary.seqs(fasta=otus2.align)"
+```
+
+Use R to find the OTUs with poor alignments via the summary file generated above. Decided to remove OTUs that did not end exactly at position 13125 (remember this is the end we sequenced off of...) and started before position 1726.
+
+```{r}
+summary <- read_tsv("otus2.summary")
+filtered_otus <- filter(summary, end == 13125 & start > 1726) %>% 
+  select(seqname)
+write_tsv(filtered_otus, "remove_otus.txt", col_names = F)
+```
+
+Next, remove those OTUs that did not align well from the OTU table, and additionally, those OTUs with a Cyanobacteria classification. UPARSE should have removed sinlgeton OTUs, but while we are removing OTUs we want to double check this is the case (-n 2 parameter).
+
+```{r, engine='bash'}
+filter_otus_from_otu_table.py -i otu_table_tax_filter.biom -o otu_table_tax_filter2.biom -e remove_otus.txt -n 2 --negate_ids_to_exclude
+
+filter_taxa_from_otu_table.py -i otu_table_tax_filter2.biom -o otu_table_tax_final.biom -n p__Cyanobacteria
+
+biom summarize-table -i otu_table_tax_final.biom -o otu_table_tax_final_summary.txt
+```
+
+## Phylogenetic Tree of OTU Representative Sequences
+
+Leaving the OTUs that we removed from the OTU table within the aligned file is fine for downstream analyses. Using that algined file here we generate a phylogenetic tree using the clearcut application in mothur. For this to work, clearcut requires ID lengths greater than ~10 characters. To account for this, we simply add 10 'A's to the front of all sequence names. We then remove the 'A's after the tree is formed.
+
+```{r, engine='bash', results='hide'}
+sed -i -e 's/>/>AAAAAAAAAA/g' otus2.align
+
+mothur "#dist.seqs(fasta=otus2.align, output=lt)"
+
+mothur "#clearcut(phylip=otus2.phylip.dist)"
+
+sed -i -e 's/AAAAAAAAAA//g' otus2.phylip.tre
+```
+
+## Rarefaction Curves and Alpha Diversity
+
+We wanted to look at the sequencing depth of each sample by monitoring the number of novel OTUs encountered as sample depth is increased. Setup here is for a depth roughly equivalent to least sample seqeunced within a step-up diet in our study so we can visually see full depth to give us an idea if the curves were plateauing. Also, here we compare alpha diversity (observed OTUs and chao1 index) with all samples at the sample depth.
+
+Remember, from QIIME notes: "If the lines for some categories do not extend all the way to the right end of the x-axis, that means that at least one of the samples in that category does not have that many sequences."
+
+```{r, engine='bash'}
+multiple_rarefactions.py -i otu_table_tax_final.biom -o alpha_rare -m 10 -x 6600 -s 500 -n 10
+ 
+alpha_diversity.py -i alpha_rare/ -o alpha_rare_otu_chao -m observed_otus,chao1
+ 
+collate_alpha.py -i alpha_rare_otu_chao/ -o alpha_rare_collate
+ 
+make_rarefaction_plots.py -i alpha_rare_collate/ -m mapping.txt -e stderr --generate_average_tables -b Treatment -w -o alpha_rare_collate_avgtable
+ 
+multiple_rarefactions_even_depth.py -i otu_table_tax_final.biom -n 10 -d 2160 -o mult_even
+ 
+alpha_diversity.py -i mult_even/ -o alpha_even -m observed_otus,chao1,goods_coverage 
+ 
+collate_alpha.py -i alpha_even -o alpha_even_collate
+
+alpha_diversity.py -i otu_table_tax_final.biom -o goods.txt -m goods_coverage
+
+```
+

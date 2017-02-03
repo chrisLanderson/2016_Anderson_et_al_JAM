@@ -1,0 +1,7 @@
+"0","seqs <- readDNAStringSet(""qc_trim.rc.fasta"", format = ""fasta"")"
+"0"," "
+"0","names(seqs) <- str_extract(names(seqs), ""R\\d+_\\d+"") %>% "
+"0","  str_split(""_"") %>%"
+"0","  map_chr(~str_c(""rumen"", .x[[2]], "";barcode="", .x[[1]]))"
+"0"," "
+"0","writeXStringSet(seqs, ""qc_trim_rc_format.fasta"", format = ""fasta"")"
