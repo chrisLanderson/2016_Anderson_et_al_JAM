@@ -1,14 +1,42 @@
 ---
-title: "R Notebook"
+title: "Rumen bacterial communities can be acclimated faster to high concentrate diets than currently implemented feedlot programs"
+author: "Christopher L. Anderson (canderson30@unl.edu)"
 output: github_document
 ---
 
+## Data Curation
+
+Raw data is provided in the github repository already, but need to download other files essential to the analysis, including the SILVA database (long download time). Additionally, here we 'unbundle' packages that are needed for the analysis with Packrat.
 
 ```{r}
-sessionInfo()
+ sessionInfo()
+# packrat::snapshot()
+# packrat::bundle()
+# packrat::unbundle()
 ```
 
-```{r, engine="bash"}
+```{r, engine="bash", results="hide"}
 tar -zxvf rumen.acclimation.tar.gz
 
+wget http://www.mothur.org/w/images/2/27/Silva.nr_v119.tgz
+tar -zxvf Silva.nr_v119.tgz
+rm -rf Silva.nr_v119.tgz silva.nr_v119.tax
 ```
+
+## Demulitplex and Quality Control
+
+The code chunk below demulitplexes the sequencing library using the provided mapping file then trims off the reverse primer.  Subseqeuntly, we trim the seqeunces to a fixed length of 400 basepairs to improve OTU picking downstream. Finally, the sequences are reverse complemented.
+
+```{r, engine="bash", results="hide"}
+split_libraries.py -m mapping.txt -f rumen.adaptation.fasta -b hamming_8 -l 0 -L 1000 -M 1 -o rumen_adaptation_demultiplex
+
+truncate_reverse_primer.py -f rumen_adaptation_demultiplex/seqs.fna -o rumen_adaptation_rev_primer -m mapping.txt -z truncate_only -M 2
+  
+mothur "#trim.seqs(fasta=rumen_adaptation_rev_primer/seqs_rev_primer_truncated.fna, minlength=400)"
+  
+fastx_trimmer -i rumen_adaptation_rev_primer/seqs_rev_primer_truncated.trim.fasta -l 400 -o rumen.adaptation.qc.trim.fasta
+ 
+mothur "#reverse.seqs(fasta=rumen.adaptation.qc.trim.fasta)"
+```
+
+## OTU Picking
