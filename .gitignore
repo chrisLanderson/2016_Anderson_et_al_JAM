@@ -10,3 +10,7 @@ usearch_out*
 packrat/lib*
 *.fasta
 trunc*
+.Rhistroy
+.Rprofile
+.kap*
+.DS_Store
