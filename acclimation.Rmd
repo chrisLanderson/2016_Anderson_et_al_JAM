@@ -4,8 +4,11 @@ output: github_document
 ---
 
 
-
 ```{r}
-
+sessionInfo()
 ```
 
+```{r, engine="bash"}
+tar -zxvf rumen.acclimation.tar.gz
+
+```
