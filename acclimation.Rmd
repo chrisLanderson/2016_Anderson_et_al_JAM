@@ -177,6 +177,5 @@ alpha_diversity.py -i mult_even/ -o alpha_even -m observed_otus,chao1,goods_cove
 collate_alpha.py -i alpha_even -o alpha_even_collate
 
 alpha_diversity.py -i otu_table_tax_final.biom -o goods.txt -m goods_coverage
-
 ```
 
