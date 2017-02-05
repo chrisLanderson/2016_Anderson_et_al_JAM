@@ -125,21 +125,21 @@ biom convert --table-type "OTU table" -i otu_table_tax.txt -o otu_table_tax.biom
 Summarize taxonomy based on those assignments that go to at least the genera and family levels.
 
 ```{r, engine="bash"}
-biom convert --table-type "OTU table" -i otu_table_tax.biom -o otu_table_tax.txt --header-key taxonomy --output-metadata-id "taxonomy" --to-tsv
+biom convert --table-type "OTU table" -i otu_table_tax_final.biom -o otu_table_tax_final.txt --header-key taxonomy --output-metadata-id "taxonomy" --to-tsv
 
 # summarize by genera
-head -n 2 otu_table_tax.txt > otu_table_tax_genus.txt
+head -n 2 otu_table_tax_final.txt > otu_table_tax_genus.txt
 
-grep "g__[a-zA-Z0-9]" otu_table_tax.txt >> otu_table_tax_genus.txt
+grep "g__[a-zA-Z0-9]" otu_table_tax_final.txt >> otu_table_tax_genus.txt
 
 biom convert --table-type "OTU table" -i otu_table_tax_genus.txt -o otu_table_tax_genus.biom --process-obs-metadata taxonomy --to-json
 
 biom summarize-table -i otu_table_tax_genus.biom -o otu_table_tax_genus_summary.txt
 
 # summarize by family
-head -n 2 otu_table_tax.txt > otu_table_tax_family.txt
+head -n 2 otu_table_tax_final.txt > otu_table_tax_family.txt
 
-grep "f__[a-zA-Z0-9]" otu_table_tax.txt >> otu_table_tax_family.txt 
+grep "f__[a-zA-Z0-9]" otu_table_tax_final.txt >> otu_table_tax_family.txt 
 
 biom convert --table-type "OTU table" -i otu_table_tax_family.txt -o otu_table_tax_family.biom --process-obs-metadata taxonomy --to-json
 
@@ -304,10 +304,24 @@ dev.off()
 
 ```
 
+## Beta Diversity
 
-```{r}
+Investigate the influence of Corn and RAMP based treatments on beta diversity independently.
 
+```{r, engine='bash'}
+biom summarize-table -i otu_table_tax_final.biom -o otu_table_tax_final_summary.txt
 
+beta_diversity_through_plots.py -i otu_table_tax_final.biom -o beta_div -t otus2.phylip.tre -m mapping.txt -p qiime_parameters_working.txt -e 2160
 
+split_otu_table.py -i otu_table_tax_final.biom -o split_total -m mapping.txt -f Diet
+ 
+biom summarize-table -i split_total/otu_table_tax_final__Diet_Corn__.biom -o split_total/corn_summarize.txt
+
+biom summarize-table -i split_total/otu_table_tax_final__Diet_RAMP__.biom -o split_total/ramp_summarize.txt
+
+beta_diversity_through_plots.py -i split_total/otu_table_tax_final__Diet_Corn__.biom -o corn_beta_div -t otus2.phylip.tre -m mapping.txt -p qiime_parameters_working.txt -e 2160
+
+beta_diversity_through_plots.py -i split_total/otu_table_tax_final__Diet_RAMP__.biom -o ramp_beta_div -t otus2.phylip.tre -m mapping.txt -p qiime_parameters_working.txt -e 2959
 ```
+
 
