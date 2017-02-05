@@ -1,12 +1,17 @@
 ---
-title: "Rumen bacterial communities can be acclimated faster to high concentrate diets than currently implemented feedlot programs"
+title: Rumen bacterial communities can be acclimated faster to high concentrate diets
+  than currently implemented feedlot programs
 author: "Christopher L. Anderson (canderson30@unl.edu)"
-output: github_document
+output:
+  github_document: default
+  html_notebook: default
+  html_document: default
 ---
 
 ## Data Curation
 
 Raw data is provided in the github repository already, but need to download other files essential to the analysis, including the SILVA v119 reference files. Additionally, here we 'unbundle' and install packages that are needed for the analysis with Packrat.
+
 
 ```{r, results="hide"}
 # packrat::clean()
@@ -17,6 +22,23 @@ Raw data is provided in the github repository already, but need to download othe
 library(Biostrings)
 library(stringr)
 library(tidyverse)
+library(XML)
+library(forcats)
+library(rmarkdown)
+library(knitr)
+library(grid)
+
+source("functions.R")
+
+```
+
+```{r knitr.settings, eval=T, echo=F, cache=TRUE}
+sessionInfo()
+opts_chunk$set("tidy" = T)
+opts_chunk$set("echo" = T)
+opts_chunk$set("eval" = T)
+opts_chunk$set("warning" = F)
+opts_chunk$set("cache" = T)
 ```
 
 ```{r, engine="bash", results="hide"}
@@ -78,7 +100,7 @@ usearch -usearch_global qc_trim_rc_format.fasta -db usearch_out/otus2.fasta -str
 python usearch_python_scripts/uc2otutab.py usearch_out/otu_map.uc > otu_table.txt
 ```
 
-## Assign Taxnomy
+## Assign and Summarize Taxonomy
 
 ```{r, engine="bash"}
 assign_taxonomy.py -i usearch_out/otus2.fasta -t anaconda/envs/rumenEnv/lib/python2.7/site-packages/qiime_default_reference/gg_13_8_otus/taxonomy/97_otu_taxonomy.txt -r anaconda/envs/rumenEnv/lib/python2.7/site-packages/qiime_default_reference/gg_13_8_otus/rep_set/97_otus.fasta -o assign_taxa -m mothur
@@ -98,6 +120,30 @@ paste otu_table_sort.txt <(cut -f 2 assign_taxa/otus2_tax_assignments_sort_label
 rm otu_table_sort.txt
 
 biom convert --table-type "OTU table" -i otu_table_tax.txt -o otu_table_tax.biom --process-obs-metadata taxonomy --to-json
+```
+
+Summarize taxonomy based on those assignments that go to at least the genera and family levels.
+
+```{r, engine="bash"}
+biom convert --table-type "OTU table" -i otu_table_tax.biom -o otu_table_tax.txt --header-key taxonomy --output-metadata-id "taxonomy" --to-tsv
+
+# summarize by genera
+head -n 2 otu_table_tax.txt > otu_table_tax_genus.txt
+
+grep "g__[a-zA-Z0-9]" otu_table_tax.txt >> otu_table_tax_genus.txt
+
+biom convert --table-type "OTU table" -i otu_table_tax_genus.txt -o otu_table_tax_genus.biom --process-obs-metadata taxonomy --to-json
+
+biom summarize-table -i otu_table_tax_genus.biom -o otu_table_tax_genus_summary.txt
+
+# summarize by family
+head -n 2 otu_table_tax.txt > otu_table_tax_family.txt
+
+grep "f__[a-zA-Z0-9]" otu_table_tax.txt >> otu_table_tax_family.txt 
+
+biom convert --table-type "OTU table" -i otu_table_tax_family.txt -o otu_table_tax_family.biom --process-obs-metadata taxonomy --to-json
+
+biom summarize-table -i otu_table_tax_family.biom -o otu_table_tax_family_summary.txt
 ```
 
 ## Filter Reads
@@ -177,5 +223,91 @@ alpha_diversity.py -i mult_even/ -o alpha_even -m observed_otus,chao1,goods_cove
 collate_alpha.py -i alpha_even -o alpha_even_collate
 
 alpha_diversity.py -i otu_table_tax_final.biom -o goods.txt -m goods_coverage
+```
+
+```{r, fig.width=10, fig.height=10}
+rare_html <- readHTMLTable("alpha_rare_collate_avgtable/rarefaction_plots.html")
+rare_html$rare_data[rare_html$rare_data == "nan"] <- NA
+colnames(rare_html$rare_data) <- c("treatment", "seqs", "chao_avg", "chao_err", "otu_avg", "otu_err")
+rare_df <- as_tibble(rare_html$rare_data)
+rare_df <- rare_df %>% 
+  mutate_at(vars(-treatment), as.character) %>% 
+  mutate_at(vars(-treatment), as.double) %>% 
+  mutate(diet = if_else(str_detect(treatment, "^C"), "Corn", "RAMP")) %>%
+  mutate(plot_color = case_when(
+    str_detect(treatment, ("[CR]1")) ~ "#FF0000",
+    str_detect(treatment, ("[CR]2")) ~ "#BF003F",
+    str_detect(treatment, ("[CR]3")) ~ "#7F007F",
+    str_detect(treatment, ("[CR]4")) ~ "#3F00BF",
+    str_detect(treatment, ("[CR]F")) ~ "#0000FF"
+  )) %>% 
+  group_by(diet)
+
+plot_color_vect <- rare_df$plot_color
+names(plot_color_vect) <- rare_df$treatment
+
+rare_otu_plot <- ggplot(rare_df, aes(x = seqs, y = otu_avg, color = treatment, group = treatment, ymin = otu_avg - otu_err, ymax = otu_avg + otu_err)) +
+  facet_grid(~diet) +
+  geom_line(position = position_dodge(width = 275)) + 
+  geom_pointrange(position = position_dodge(width = 275), size = 0.3) +
+  scale_color_manual(values = plot_color_vect) +
+  labs(x = "Sequences per Sample", y = "Mean Observed OTUs") +
+  theme(legend.title = element_blank(), 
+        text = element_text(size = 6))
+
+rare_chao_plot <- ggplot(rare_df, aes(x = seqs, y = chao_avg, color = treatment, group = treatment, ymin = chao_avg - chao_err, ymax = chao_avg + chao_err)) +
+  facet_grid(~diet) +
+  geom_line(position = position_dodge(width = 275)) + 
+  geom_pointrange(position = position_dodge(width = 275), size = 0.3) +
+  scale_color_manual(values = plot_color_vect) +
+  labs(x = "Sequences per Sample", y = "Mean Observed OTUs") +
+  theme(legend.title = element_blank(), 
+        text = element_text(size = 6))
+
+alpha_col_names <- c("CF_332", "R3_259", "R2_343", "R4_343", "R4_259", "C3_346", "C4_332", "R1_222", "CF_346", "RF_343", "RF_222", "C3_332", "R2_222", "R1_343", "R3_343", "C1_346", "C2_332", "R2_259", "R3_222", "C1_332", "C2_346", "R4_222", "RF_259", "R1_259", "C4_346")
+
+alpha_chao <- read_tsv("alpha_even_collate/chao1.txt")
+alpha_chao <- select(alpha_chao, starts_with("R"))
+names(alpha_chao) <- alpha_col_names
+alpha_chao_t <- enframe(as.list(alpha_chao))
+alpha_chao_plot <- alpha_chao_t %>% 
+  mutate(means = map_dbl(value, mean)) %>% 
+  mutate(sds = map_dbl(value, sd)) %>% 
+  mutate(diet = if_else(str_detect(name, "^C"), "Corn", "RAMP")) %>% 
+  mutate(treatment = str_sub(name, 1, 2)) %>% 
+  ggplot(., aes(x = treatment, y = means)) +
+    facet_wrap(~diet) +
+    geom_point(size = 2) + 
+    labs(x = "", y = "Mean Chao1 Index") +
+    theme(legend.title = element_blank(),text = element_text(size = 6))
+
+alpha_otu <- read_tsv("alpha_even_collate/observed_otus.txt")
+alpha_otu <- select(alpha_otu, starts_with("R"))
+names(alpha_otu) <- alpha_col_names
+alpha_otu_t <- enframe(as.list(alpha_otu))
+alpha_otu_plot <- alpha_otu_t %>% 
+  mutate(means = map_dbl(value, mean)) %>% 
+  mutate(sds = map_dbl(value, sd)) %>% 
+  mutate(diet = if_else(str_detect(name, "^C"), "Corn", "RAMP")) %>% 
+  mutate(treatment = str_sub(name, 1, 2)) %>% 
+  ggplot(., aes(x = treatment, y = means)) +
+    facet_wrap(~diet) +
+    geom_point(size = 2) + 
+    labs(x = "", y = "Mean Observed OTUs") +
+    theme(legend.title = element_blank(),text = element_text(size = 6))
+
+multiplot(rare_otu_plot, rare_chao_plot, alpha_otu_plot, alpha_chao_plot, cols = 2)
+
+pdf("FigureS2.pdf", height = 12, width = 12)
+multiplot(rare_otu_plot, rare_chao_plot, alpha_otu_plot, alpha_chao_plot, cols = 2)
+dev.off()
+
+```
+
+
+```{r}
+
+
+
 ```
 
