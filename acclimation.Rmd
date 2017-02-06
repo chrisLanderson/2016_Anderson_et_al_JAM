@@ -31,6 +31,8 @@ library(vegan)
 library(magrittr)
 library(biom)
 library(gplots)
+library(Heatplus)
+library(RColorBrewer)
 
 source("functions.R")
 
@@ -598,5 +600,207 @@ collapse_tidy <- collapse_tib %>%
   nest()
 
 combn_output <- combn(unique(collapse_tidy$sample), 2, simplify = FALSE, FUN = seq_shared)
+```
+
+## OTU Heatmap
+
+```{r}
+otu_table_biom <- read_biom("otu_table_tax_final.biom")
+otu_table <- as.data.frame(as(biom_data(otu_table_biom), "matrix"))
+row.names(otu_table) <- otu_table$OTU.ID
+colnames(otu_table) <- c("CF_332", "R3_259", "R2_343", "R4_343", "R4_259", "C3_346", "C4_332", "R1_222", "CF_346", "RF_343", "RF_222", "C3_332", "R2_222", "R1_343", "R3_343", "C1_346", "C2_332", "R2_259", "R3_222", "C1_332", "C2_346", "R4_222", "RF_259", "R1_259", "C4_346")
+otu_table_trans <- as.data.frame(t(otu_table))
+otu_table_rel <- otu_table_trans/rowSums(otu_table_trans)
+scalewhiteblack <- colorRampPalette(c("white", "black"), space = "rgb")(100)
+otu_dist <- vegdist(otu_table_rel, method = "bray")
+row.clus <- hclust(otu_dist, "aver")
+maxab <- apply(otu_table_rel, 2, max)
+n1 <- names(which(maxab < 0.01))
+otu_table_rel2 <- otu_table_rel[, -which(names(otu_table_rel) %in% n1)]
+otu_dist_col <- vegdist(t(otu_table_rel2), method = "bray")
+col.clus <- hclust(otu_dist_col, "aver")
+png("Figure2.png", units = 'in', height = 8, width = 8, res = 600)
+heatmap.2(as.matrix(otu_table_rel2), Rowv = as.dendrogram(row.clus), Colv = as.dendrogram(col.clus), col = scalewhiteblack, margins = c(2, 6), trace = "none", density.info = "none", labCol = "", xlab = "OTUs", ylab = "Samples", main = "", lhei = c(2, 8))
+dev.off()
+```
+
+![](Figure2.png)
+
+## Pairwise Comparisons and Principle Component Analysis
+
+```{r, fig.width=10, fig.height=4}
+corn_distance_plot <- corn_unweighted_tidy %>% 
+  filter(str_detect(dist_treatment, "^C1-")) %>% 
+  unnest() %>% 
+  ggplot(., aes(x = dist_treatment, y = dist)) + 
+    geom_boxplot() +
+    geom_point(position = position_jitter(width = 0.15)) +
+    labs(x = "", y = "Unweighted UniFrac Distance\n") +
+    guides(fill = FALSE) +
+    theme(axis.text.x = element_text(colour = "black"),  
+          axis.title.y = element_text(size = 14), 
+          axis.ticks = element_blank())
+
+ramp_distance_plot <- ramp_unweighted_tidy %>% 
+  filter(str_detect(dist_treatment, "^R1-")) %>% 
+  unnest() %>% 
+  ggplot(., aes(x = dist_treatment, y = dist)) + 
+    geom_boxplot() +
+    geom_point(position = position_jitter(width = 0.15)) +
+    labs(x = "", y = "Unweighted UniFrac Distance\n") +
+    guides(fill = FALSE) +
+    theme(axis.text.x = element_text(colour = "black"),  
+          axis.title.y = element_text(size = 14), 
+          axis.ticks = element_blank())
+
+shape_plot <- c("R1" = 15, "R2" = 16, "R3" = 17, "R4" = 18, "RF" = 8, "C1" = 15, "C2" = 16, "C3" = 17, "C4" = 18, "CF" = 8)
+color_plot <- c("R1" = "red", "R2" = "red", "R3" = "red", "R4" = "red", "RF" = "red", "C1" = "blue", "C2" = "blue", "C3" = "blue", "C4" = "blue", "CF" = "blue")
+con <- file("beta_div/unweighted_unifrac_pc.txt")
+pc <- read_tsv(con, skip = 9, n_max = 25, col_names = F)
+pc_plot <- pc %>% 
+  rename(SampleID = X1, PC1 = X2, PC2 = X3) %>% 
+  left_join(., mapping, by = "SampleID") %>% 
+  select(SampleID, PC1, PC2, Treatment) %>% 
+  ggplot(., aes(PC1, PC2)) + 
+    geom_point(aes(size=4, color = factor(Treatment), shape = factor(Treatment))) +    
+    xlab("PC1 (21.1%)") + ylab("PC2 (10.0%)") +
+    guides(size = FALSE) + 
+    scale_shape_manual(name = "", values = shape_plot) +
+    scale_colour_manual(name = "", values = color_plot) +
+    labs(fill = "")
+
+multiplot(pc_plot, corn_distance_plot, ramp_distance_plot, cols = 3)
+
+pdf("Figure1.pdf", height = 6, width = 16)
+multiplot(pc_plot, corn_distance_plot, ramp_distance_plot, cols = 3)
+dev.off()
+```
+
+## OTU-Level Statistics and Comparisons
+
+Here, we use LEFSE to identify OTUs that differed between treatments at potential break points in microbial community structure found above (i.e. from steps C3 to C4, R1 to R2, and R2 to R3). First, we need to format a file suitable for input into LEFSE.
+
+```{r, engine='bash'}
+# remove potential singleton OTUs
+filter_otus_from_otu_table.py -i split_total/otu_table_tax_final__Diet_Corn__.biom -n 1 -o split_total/otu_table_tax_final__Diet_Corn__filter.biom
+
+filter_otus_from_otu_table.py -i split_total/otu_table_tax_final__Diet_RAMP__.biom -n 1 -o split_total/otu_table_tax_final__Diet_RAMP__filter.biom
+```
+
+```{r}
+corn_biom <- read_biom("split_total/otu_table_tax_final__Diet_Corn__filter.biom")
+corn_table <- as.data.frame(as(biom_data(corn_biom), "matrix"))
+corn_rel <- sweep(corn_table, 2, colSums(corn_table), FUN = "/")
+rownames(corn_rel) <- paste("OTU", rownames(corn_rel), sep = "")
+corn_rel2 <- corn_rel[0, ]
+corn_rel2[nrow(corn_rel2) + 1, ] <- c("break2", "break1", "break2", "break2", "break1", "break1", "break1", "break1", "break1", "break2")
+corn_rel2[nrow(corn_rel2) + 1, ] <- c("A332", "A346", "A332", "A346", "A332", "A346", "A332", "A332", "A346", "A346")
+row.names(corn_rel2) <- c("break", "animal")
+corn_rel_merge <- rbind(corn_rel2, corn_rel)
+write.table(corn_rel_merge, sep = "\t", file = "split_total/otu_table_tax_final__Diet_Corn__filter_relative.txt", row.names = TRUE, col.names = FALSE, quote = FALSE)
+
+ramp_biom <- read_biom("split_total/otu_table_tax_final__Diet_RAMP__filter.biom")
+ramp_table <- as.data.frame(as(biom_data(ramp_biom), "matrix"))
+ramp_rel <- sweep(ramp_table, 2, colSums(ramp_table), FUN="/")
+rownames(ramp_rel) <- paste("OTU", rownames(ramp_rel), sep="")
+ramp_rel2 <- ramp_rel[0,]
+ramp_rel2[nrow(ramp_rel2) + 1, ] <- c( "break3", "break2", "break3", "break3", "break1", "break3", "break3", "break2", "break1", "break3", "break2", "break3", "break2", "break3", "break1")
+ramp_rel2[nrow(ramp_rel2) + 1, ] <- c( "A259", "A343", "A343", "A259", "A222", "A343", "A222", "A222", "A343", "A343", "A259", "A222", "A222", "A259", "A259")
+row.names(ramp_rel2) <- c("break","animal")
+ramp_rel_merge <- rbind(ramp_rel2,ramp_rel)
+ramp_rel_merge_1 <- subset(ramp_rel_merge, select = c(R18, R24, R8, R12, R23, R5))
+ramp_rel_merge_2 <- subset(ramp_rel_merge, select=c(R12, R23, R5, R11, R13, R14, R20, R21, R23, R3, R4, R7))
+write.table(ramp_rel_merge_1, sep="\t", file="split_total/otu_table_tax_final__Diet_RAMP__filter_b12_relative.txt", row.names=TRUE, col.names=FALSE, quote = FALSE)
+write.table(ramp_rel_merge_2, sep="\t", file="split_total/otu_table_tax_final__Diet_RAMP__filter_b23_relative.txt", row.names=TRUE, col.names=FALSE, quote = FALSE)
+```
+
+Run LEFSE.
+
+```{r, engine='bash'}
+wget https://bitbucket.org/nsegata/lefse/get/default.zip -O lefse.zip
+unzip lefse.zip
+mv nsegata* lefse
+
+python lefse/format_input.py split_total/otu_table_tax_final__Diet_Corn__filter_relative.txt corn_lefse_format.txt -c 1 -u 2 -o 1000000 
+python lefse/run_lefse.py corn_lefse_format.txt corn_lefse_result.txt
+
+python lefse/format_input.py split_total/otu_table_tax_final__Diet_RAMP__filter_b12_relative.txt ramp_12_lefse_format.txt -c 1 -u 2 -o 1000000 
+python lefse/run_lefse.py ramp_12_lefse_format.txt ramp_12_lefse_result.txt
+
+python lefse/format_input.py split_total/otu_table_tax_final__Diet_RAMP__filter_b23_relative.txt ramp_23_lefse_format.txt -c 1 -u 2 -o 1000000 
+python lefse/run_lefse.py ramp_23_lefse_format.txt ramp_23_lefse_result.txt
+```
+
+One shift in the microbial community was identified in the corn-adaptation program. Here, we plot the heatmap for OTUs identified as having a significantly different abundance around this shift. The resulting heatmap only displays OTUs with a maximum relative abundance >1% and are sorted by LDA score.
+
+```{r}
+
+
+
+
+
+
+```
+
+
+
+
+
+```{r}
+corn_otu <- read.table("corn_lefse_tax.txt", header=TRUE, sep="\t", fill=TRUE)
+corn_otu$family <- sub("f__", "", corn_otu$family)
+corn_otu$family <- sub("\\]", "", corn_otu$family)
+corn_otu$family <- sub("\\[", "", corn_otu$family)
+corn_otu$family <- sub("^$", "No Assigned Family", corn_otu$family)
+row.names(corn_otu) <- corn_otu$OTU.ID
+corn_otu <- corn_otu[,-1]
+corn_fam <- subset(corn_otu, select=c(family))
+
+corn_lefse <- read.table("corn_lefse_result.txt", header=FALSE, sep="\t")
+corn_lefse$V1 <- sub("OTU", "", corn_lefse$V1)
+colnames(corn_lefse) <- c("OTU.ID","raw","breaks","LDA","pval")
+row.names(corn_lefse) <- corn_lefse$OTU.ID
+corn_lefse <- corn_lefse[,-1]
+
+corn_fam_lefse <- merge(corn_fam, corn_lefse, by="row.names")
+corn_fam_lefse <- corn_fam_lefse[with(corn_fam_lefse, order(breaks, -LDA)), ]
+corn_supp_table <- subset(corn_fam_lefse, select=c(family,breaks))
+write.table(corn_supp_table, file="TableS2-1.txt", sep="\t", quote = FALSE, col.names = NA)
+
+corn_biom <- read_biom("split_total/rumen.adaptation.otu_table.tax.final__Diet_Corn__.filter.biom")
+corn_table <- as.data.frame(as(biom_data(corn_biom), "matrix"))
+colnames(corn_table) <- c("CF_332", "C3_346", "C4_332", "CF_346", "C3_332", "C1_346", "C2_332", "C1_332", "C2_346", "C4_346")
+corn_table <- corn_table[c("C1_346", "C1_332", "C2_346", "C2_332", "C3_346", "C3_332", "C4_346", "C4_332", "CF_346", "CF_332")]
+corn_trans <- as.data.frame(t(corn_table))
+corn_rel <- corn_trans/rowSums(corn_trans)
+scalewhiteblack <- colorRampPalette(c("white", "black"), space = "rgb")(100)
+maxab <- apply(corn_rel, 2, max)
+n1 <- names(which(maxab < 0.01))
+corn_rel2 <- corn_rel[, -which(names(corn_rel) %in% n1)]
+corn_rel2 <- as.data.frame(t(corn_rel2))
+
+corn_merge <- merge(corn_fam, corn_rel2, by="row.names")
+row.names(corn_merge) <- corn_merge$Row.names
+corn_merge <- corn_merge[,-1]
+corn_merge2 <- merge(corn_merge, corn_lefse, by="row.names")
+row.names(corn_merge2) <- corn_merge2$Row.names
+corn_merge2 <- corn_merge2[,-1]
+corn_merge2 <- corn_merge2[with(corn_merge2, order(breaks, -LDA)), ]
+
+lmat = rbind(c(4,0,0),c(2,1,3))
+lwid = c(0.60,1.9,0.3)
+lhei = c(0.3,1.5)
+
+corn_fam2 <- subset(corn_merge2, select=c(family))
+corn_plot <- subset(corn_merge2, select = -c(family,breaks,LDA,raw,pval))
+corn_plot <- as.data.frame(t(corn_plot))
+
+pdf("Figure3_panelA.pdf", width=12, height=9)
+heatmap.2(as.matrix(corn_plot), Rowv = FALSE, Colv = FALSE, col = scalewhiteblack, margins = c(13, 9.5), trace = "none", density.info = "none", xlab = "", ylab = "", main = "", srtCol=67.5, cexCol=1.3, cexRow=2.0, lmat= lmat, lwid = lwid, lhei = lhei, labCol = corn_fam2$family)
+dev.off()
+
+png("Figure3_panelA.png", width=12, height=9, units='in', res=300)
+heatmap.2(as.matrix(corn_plot), Rowv = FALSE, Colv = FALSE, col = scalewhiteblack, margins = c(13, 9.5), trace = "none", density.info = "none", xlab = "", ylab = "", main = "", srtCol=67.5, cexCol=1.3, cexRow=2.0, lmat= lmat, lwid = lwid, lhei = lhei, labCol = corn_fam2$family)
+dev.off()
 ```
 
