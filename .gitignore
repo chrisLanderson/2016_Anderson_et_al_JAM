@@ -19,7 +19,7 @@ trunc*
 alpha*
 goods*
 .Rpro*/*/
-FigureS2.pdf
+Figure*
 packrat/lib*/
 packrat/src/
 .Rproj.user
@@ -27,3 +27,8 @@ beta_div
 corn_beta_div
 ramp_beta_div
 split_total
+Figure4_panel*
+mapping_collapse.txt
+split_collapse_samples*
+collapse_samples_shared_otus.txt
+Table*

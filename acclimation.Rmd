@@ -27,6 +27,10 @@ library(forcats)
 library(rmarkdown)
 library(knitr)
 library(grid)
+library(vegan)
+library(magrittr)
+library(biom)
+library(gplots)
 
 source("functions.R")
 
@@ -324,4 +328,275 @@ beta_diversity_through_plots.py -i split_total/otu_table_tax_final__Diet_Corn__.
 beta_diversity_through_plots.py -i split_total/otu_table_tax_final__Diet_RAMP__.biom -o ramp_beta_div -t otus2.phylip.tre -m mapping.txt -p qiime_parameters_working.txt -e 2959
 ```
 
+We use PERMANOVA with the unweighted UNIFRAC distance matrix to identify changes in microbial community structure between treatment groups in those animals fed RAMP and the corn-based diet. Additioanlly, we check that the data does not violate the assumptions of PERMANOVA. However, because there is no variance within the corn-based treatment group due to low sample numbers (that is, within a group there is only one value, i.e. C1-C1 distance, C2-C2 distance, etc.), the results testing a violation of the assumptions of PERMANOVA are unreliable.
+
+```{r}
+set.seed(11)
+corn_unweighted <- read_tsv("corn_beta_div/unweighted_unifrac_dm.txt")
+corn_unweighted_dist <- corn_unweighted %>% 
+  select(-X1) %>% 
+  as.dist(.)
+
+ramp_unweighted <- read_tsv("ramp_beta_div/unweighted_unifrac_dm.txt")
+ramp_unweighted_dist <- ramp_unweighted %>% 
+  select(-X1) %>% 
+  as.dist(.)
+
+dist_list <- list(corn_unweighted_dist, ramp_unweighted_dist)
+
+mapping <- read_tsv("mapping.txt")
+names(mapping)[1] <- "SampleID"
+mapping <- mapping %>% 
+  filter(SampleID != "R6", SampleID != "R19") %>% 
+  mutate_at(vars(AnimalID, Treatment), as.factor) %>% 
+  group_by(Diet) %>% 
+  nest() %>% 
+  arrange(Diet) %>%
+  mutate(dists = dist_list) %>% 
+  mutate(permanova = map2(dists, data, ~adonis(.x ~ Treatment + AnimalID, permutations = 999, data = .y))) %>% 
+  mutate(anova_treat = map2(dists, data, ~anova(betadisper(.x, .y$Treatment)))) %>% 
+  mutate(anova_animal = map2(dists, data, ~anova(betadisper(.x, .y$AnimalID)))) %>%
+  mutate(permu_treat = map2(dists, data, ~permutest(betadisper(.x, .y$Treatment)))) %>% 
+  mutate(permu_animal = map2(dists, data, ~permutest(betadisper(.x, .y$AnimalID))))
+```
+Results of statistical tests were saved in the data frame...print them to screen.
+
+```{r}
+(corn_perm <- mapping %>% 
+  filter(Diet == "Corn") %>% 
+  select(permanova)
+)[[1]]
+```
+
+```{r}
+(corn_anova_treat <- mapping %>% 
+  filter(Diet == "Corn") %>% 
+  select(anova_treat)
+)[[1]]
+```
+
+```{r}
+(corn_anova_animal <- mapping %>% 
+  filter(Diet == "Corn") %>% 
+  select(anova_animal)
+)[[1]]
+```
+
+```{r}
+(corn_permu_treat <- mapping %>% 
+  filter(Diet == "Corn") %>% 
+  select(permu_treat)
+)[[1]]
+```
+
+```{r}
+(corn_permu_animal <- mapping %>% 
+  filter(Diet == "Corn") %>% 
+  select(permu_animal)
+)[[1]]
+```
+
+```{r}
+(ramp_perm <- mapping %>% 
+  filter(Diet == "RAMP") %>% 
+  select(permanova)
+)[[1]]
+```
+
+```{r}
+(ramp_anova_treat <- mapping %>% 
+  filter(Diet == "RAMP") %>% 
+  select(anova_treat)
+)[[1]]
+```
+
+```{r}
+(ramp_anova_animal <- mapping %>% 
+  filter(Diet == "RAMP") %>% 
+  select(anova_animal)
+)[[1]]
+```
+
+```{r}
+(ramp_permu_treat <- mapping %>% 
+  filter(Diet == "RAMP") %>% 
+  select(permu_treat)
+)[[1]]
+```
+
+```{r}
+(ramp_permu_animal <- mapping %>% 
+  filter(Diet == "RAMP") %>% 
+  select(permu_animal)
+)[[1]]
+```
+
+We used the Mann-Whitney U Test as a post-hoc method to compare the microbial communities at stages within an adaptation program. To do this, we compared the pairwise distances relative to step 1 of adaptation. For instance, to test for a difference in community structure between step 2 and step 3, we compared all the pairwise distances from step 1 samples to step 2 samples (S1-S2) to the distance from step 1 samples to step 3 samples (S1-S3).
+
+```{r}
+corn_unweighted_tidy <- corn_unweighted %>%
+  gather(R10:R9, key = S2, value = dist) %>% 
+  dplyr::rename(S1 = X1) %>% 
+  mutate(unique_key = paste0(pmin(S1, S2), pmax(S1, S2), sep = "")) %>% 
+  distinct(unique_key, .keep_all = T) %>% 
+  select(-unique_key)
+
+mapping <- read_tsv("mapping.txt")
+names(mapping)[1] <- "SampleID"
+
+corn_unweighted_tidy <- left_join(corn_unweighted_tidy, mapping, by = c("S1" = "SampleID")) %>% 
+  select(S1, S2, dist, Treatment) %>% 
+  dplyr::rename(S1_treatment = Treatment) %>% 
+  left_join(., mapping, by = c("S2" = "SampleID")) %>% 
+  dplyr::rename(S2_treatment = Treatment) %>% 
+  mutate(dist_treatment = map2_chr(S1_treatment, S2_treatment, collapse_treatment)) %>% 
+  filter(dist != 0) %>% 
+  select(dist, dist_treatment) %>% 
+  group_by(dist_treatment) %>% 
+  nest()
+
+corn_unweighted_tidy %>% 
+  filter((dist_treatment == "C1-C1") | (dist_treatment == "C1-C2")) %$%
+  wilcox.test(data[[1]] %$% dist, data[[2]] %$% dist)
+```
+
+```{r}
+corn_unweighted_tidy %>% 
+  filter((dist_treatment == "C1-C2") | (dist_treatment == "C1-C3")) %$%
+  wilcox.test(data[[1]] %$% dist, data[[2]] %$% dist)
+```
+
+```{r}
+corn_unweighted_tidy %>% 
+  filter((dist_treatment == "C1-C3") | (dist_treatment == "C1-C4")) %$%
+  wilcox.test(data[[1]] %$% dist, data[[2]] %$% dist)
+```
+
+```{r}
+corn_unweighted_tidy %>% 
+  filter((dist_treatment == "C1-C4") | (dist_treatment == "C1-CF")) %$%
+  wilcox.test(data[[1]] %$% dist, data[[2]] %$% dist)
+```
+
+```{r}
+ramp_unweighted_tidy <- ramp_unweighted %>%
+  gather(R11:R8, key = S2, value = dist) %>% 
+  dplyr::rename(S1 = X1) %>% 
+  mutate(unique_key = paste0(pmin(S1, S2), pmax(S1, S2), sep = "")) %>% 
+  distinct(unique_key, .keep_all = T) %>% 
+  select(-unique_key)
+
+ramp_unweighted_tidy <- left_join(ramp_unweighted_tidy, mapping, by = c("S1" = "SampleID")) %>% 
+  select(S1, S2, dist, Treatment) %>% 
+  dplyr::rename(S1_treatment = Treatment) %>% 
+  left_join(., mapping, by = c("S2" = "SampleID")) %>% 
+  dplyr::rename(S2_treatment = Treatment) %>% 
+  mutate(dist_treatment = map2_chr(S1_treatment, S2_treatment, collapse_treatment)) %>% 
+  filter(dist != 0) %>% 
+  select(dist, dist_treatment) %>% 
+  group_by(dist_treatment) %>% 
+  nest()
+
+ramp_unweighted_tidy %>% 
+  filter((dist_treatment == "R1-R1") | (dist_treatment == "R1-R2")) %$%
+  wilcox.test(data[[1]] %$% dist, data[[2]] %$% dist)
+```
+
+```{r}
+ramp_unweighted_tidy %>% 
+  filter((dist_treatment == "R1-R2") | (dist_treatment == "R1-R3")) %$%
+  wilcox.test(data[[1]] %$% dist, data[[2]] %$% dist)
+```
+
+```{r}
+ramp_unweighted_tidy %>% 
+  filter((dist_treatment == "R1-R3") | (dist_treatment == "R1-R4")) %$%
+  wilcox.test(data[[1]] %$% dist, data[[2]] %$% dist)
+```
+
+```{r}
+ramp_unweighted_tidy %>% 
+  filter((dist_treatment == "R1-R4") | (dist_treatment == "R1-RF")) %$%
+  wilcox.test(data[[1]] %$% dist, data[[2]] %$% dist)
+```
+
+## Shared OTUs and Sequences
+
+First, make venn diagrams dislaying the distribution of OTUs between steup up diets within the RAMP and corn-based treatment.
+
+```{r, engine='bash'}
+collapse_samples.py -b otu_table_tax_family.biom -m mapping.txt --output_biom_fp otu_table_collapse_samples.biom --output_mapping_fp mapping_collapse.txt --collapse_fields Treatment --collapse_mode sum
+
+split_otu_table.py -i otu_table_collapse_samples.biom -m mapping_collapse.txt -f Diet -o split_collapse_samples
+
+biom convert -i split_collapse_samples/otu_table_collapse_samples__Diet_Corn__.biom -o split_collapse_samples/otu_table_collapse_samples__Diet_Corn__.json.biom --to-json --table-type="OTU table"
+
+biom convert -i split_collapse_samples/otu_table_collapse_samples__Diet_RAMP__.biom -o split_collapse_samples/otu_table_collapse_samples__Diet_RAMP__.json.biom --to-json --table-type="OTU table"
+```
+
+```{r, fig.width=6, fig.height=6}
+corn_biom <- read_biom("split_collapse_samples/otu_table_collapse_samples__Diet_Corn__.json.biom")
+
+corn_df <- as_tibble(as(biom_data(corn_biom), "matrix"))
+corn_boolean_df <- as_tibble(corn_df > 0) %>% 
+  select(C1, C2, C3, C4, CF)
+
+corn_venn <- venn(corn_boolean_df)
+
+pdf("Figure4_panelA.pdf", height = 6, width = 6)
+corn_venn <- venn(corn_boolean_df)
+dev.off()
+
+ramp_biom <- read_biom("split_collapse_samples/otu_table_collapse_samples__Diet_RAMP__.json.biom")
+
+ramp_df <- as_tibble(as(biom_data(ramp_biom), "matrix"))
+ramp_boolean_df <- as_tibble(ramp_df > 0) %>% 
+  select(R1, R2, R3, R4, RF)
+
+ramp_venn <- venn(ramp_boolean_df)
+
+pdf("Figure4_panelB.pdf", height = 6, width = 6)
+ramp_venn <- venn(ramp_boolean_df)
+dev.off()
+```
+
+Get shared number of OTUs and sequences per sample.
+
+```{r, engine='bash'}
+shared_phylotypes.py -i otu_table_collapse_samples.biom -o collapse_samples_shared_otus.txt
+```
+
+Write shared number of OTUs between treatments to file.
+
+```{r}
+share_otu <- read_tsv("collapse_samples_shared_otus.txt")
+
+share_otu_tidy <- share_otu %>% 
+  gather(R4:C4, key = "S2", value = "OTUs") %>% 
+  dplyr::rename(S1 = X1) %>% 
+  mutate(unique_key = paste0(pmin(S1, S2), pmax(S1, S2), sep = "")) %>% 
+  distinct(unique_key, .keep_all = T) %>% 
+  select(-unique_key) %>% 
+  filter(S1 != S2) %>% 
+  mutate(max_share = map2_int(S1, S2, max_shared_otu)) %>% 
+  mutate(per_share = (OTUs / max_share) * 100) %>% 
+  select(S1, S2, OTUs, per_share) %>% 
+  write_tsv("Table_S4.txt", col_names = F)
+```
+
+Write shared number of sequences between treatments to file.
+
+```{r}
+collapse_biom <- read_biom("otu_table_collapse_samples.biom")
+collapse_df <- as.data.frame(as(biom_data(collapse_biom), "matrix"))
+collapse_tib <- as_tibble(rownames_to_column(collapse_df))
+collapse_tidy <- collapse_tib %>% 
+  dplyr::rename(otu = rowname) %>% 
+  gather(R4:C4, key = "sample", value = "abundance") %>% 
+  filter(abundance > 0) %>% 
+  group_by(sample) %>% 
+  nest()
+
+combn_output <- combn(unique(collapse_tidy$sample), 2, simplify = FALSE, FUN = seq_shared)
+```
 
