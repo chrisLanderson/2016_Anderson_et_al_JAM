@@ -4,9 +4,9 @@ The R Markdown file in this repository contains the code for the analysis. Due t
 
 To start the analysis:
 
-	1. wget https://raw.githubusercontent.com/chrisLanderson/2016_Anderson_et_al_JAM/master/run.sh
+	wget https://raw.githubusercontent.com/chrisLanderson/2016_Anderson_et_al_JAM/master/run.sh
 
-	2. run.sh usearch_link
+	run.sh usearch_link
 
 The analysis is setup to run in a Mac OS X environment, but can be easily switched to run in linux by uncommenting/commenting the appropriate lines in run.sh for anaconda installation and downloaded a linux version of USEARCH.
 
