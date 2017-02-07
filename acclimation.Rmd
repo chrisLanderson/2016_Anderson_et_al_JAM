@@ -1,6 +1,5 @@
 ---
-title: Rumen bacterial communities can be acclimated faster to high concentrate diets
-  than currently implemented feedlot programs
+title: Rumen bacterial communities can be acclimated faster to high concentrate diets than currently implemented feedlot programs
 author: "Christopher L. Anderson (canderson30@unl.edu)"
 output:
   github_document: default
@@ -12,13 +11,7 @@ output:
 
 Raw data is provided in the github repository already, but need to download other files essential to the analysis, including the SILVA v119 reference files. Additionally, here we 'unbundle' and install packages that are needed for the analysis with Packrat.
 
-
 ```{r, results="hide"}
-# packrat::clean()
-# packrat::bundle()
-# packrat::unbundle()
-# sessionInfo()
-
 library(Biostrings)
 library(stringr)
 library(tidyverse)
@@ -35,16 +28,14 @@ library(Heatplus)
 library(RColorBrewer)
 
 source("functions.R")
-
 ```
 
-```{r knitr.settings, eval=T, echo=F, cache=TRUE}
-sessionInfo()
+```{r knitr.settings, eval=T, echo=F, results = "hide"}
 opts_chunk$set("tidy" = T)
 opts_chunk$set("echo" = T)
 opts_chunk$set("eval" = T)
 opts_chunk$set("warning" = F)
-opts_chunk$set("cache" = T)
+opts_chunk$set("message" = F)
 ```
 
 ```{r, engine="bash", results="hide"}
@@ -761,11 +752,67 @@ biom convert -i ramp_12_lefse.biom -o  ramp_12_lefse.txt --table-type="OTU table
 
 filter_otus_from_otu_table.py -i split_total/otu_table_tax_final__Diet_RAMP__filter.biom -o ramp_23_lefse.biom -e ramp_23_lefse_otus.txt --negate_ids_to_exclude
 biom convert -i ramp_23_lefse.biom -o  ramp_23_lefse.txt --table-type="OTU table" --to-tsv --header-key taxonomy
+
+biom convert -i split_total/otu_table_tax_final__Diet_Corn__filter.biom -o split_total/otu_table_tax_final__Diet_Corn__filter.txt --table-type "OTU table" --to-tsv --header-key taxonomy --output-metadata-id "taxonomy"
+
+biom convert -i split_total/otu_table_tax_final__Diet_RAMP__filter.biom -o split_total/otu_table_tax_final__Diet_RAMP__filter.txt --table-type "OTU table" --to-tsv --header-key taxonomy --output-metadata-id "taxonomy"
 ```
 
 One shift in the microbial community was identified in the corn-adaptation program. Here, we plot the heatmap for OTUs identified as having a significantly different abundance around this shift. The resulting heatmap only displays OTUs with a maximum relative abundance >1% and are sorted by LDA score.
 
+Corn-based treatment first.
+
 ```{r}
+corn_otu <- read_tsv("corn_lefse.txt", skip = 1)
+names(corn_otu)[1] <- "OTUID"
+corn_fams <- corn_otu %>% 
+  mutate(family = str_extract(taxonomy, "(?<=f__)[\\[\\]\\w\\d]+")) %>% 
+  mutate(family = str_replace_all(family, "[\\[\\]]", "")) %>% 
+  mutate(family = str_replace_na(family, replacement = "No Assigned Family")) %>% 
+  select(OTUID, family)
+
+corn_lefse <- read_tsv("corn_lefse_result.txt", col_names = F)
+corn_lefse <- corn_lefse %>% 
+  dplyr::rename(OTUID = X1, raw = X2, breaks = X3, LDA = X4, pval = X5) %>% 
+  mutate(OTUID = as.integer(str_replace(OTUID, "OTU", ""))) %>% 
+  left_join(corn_fams, ., by = "OTUID") %>% 
+  arrange(breaks, desc(LDA)) %>% 
+  write_tsv("Table_S2-1.txt")
+
+corn_table <- read_tsv("split_total/otu_table_tax_final__Diet_Corn__filter.txt", skip = 1)
+names(corn_table)[1] <- "OTUID"
+  
+corn_otu_lefse <- corn_table %>% 
+  rename(CF_332 = R10, C3_346 = R15, C4_332 = R16, CF_346 = R2, C3_332 = R22, C1_346 = R36, C2_332 = R37, C1_332 = R40, C2_346 = R41, C4_346 = R9) %>%
+  select(OTUID, C1_346, C1_332, C2_346, C2_332, C3_346, C3_332, C4_346, C4_332, CF_346, CF_332)  %>% 
+  mutate_each(funs(normalize_table), -OTUID) %>% 
+  gather(C1_346:CF_332, key = sample, value = abundance) %>% 
+  group_by(OTUID) %>% 
+  filter(any(abundance > 0.01)) %>% 
+  ungroup() %>% 
+  spread(key = sample, value = abundance) %>% 
+  mutate(OTUID = as.integer(OTUID)) %>% 
+  inner_join(corn_lefse, by = "OTUID") %>% 
+  arrange(breaks, desc(LDA))
+
+scalewhiteblack <- colorRampPalette(c("white", "black"), space = "rgb")(100)
+lmat = rbind(c(4,0,0),c(2,1,3))
+lwid = c(0.60,1.9,0.3)
+lhei = c(0.3,1.5)
+
+pdf("Figure3_panelA.pdf", width = 12, height = 9)
+corn_otu_lefse %>% 
+  select(starts_with("C", ignore.case = F)) %>% 
+  t() %>% 
+  heatmap.2(Rowv = F, Colv = F, col = scalewhiteblack, margins = c(13, 9.5), trace = "none", density.info = "none", xlab = "", ylab = "", main = "", srtCol = 67.5, cexCol = 1.3, cexRow = 2.0, lmat = lmat, lwid = lwid, lhei = lhei, labCol = corn_otu_lefse$family)
+dev.off()
+```
+
+
+Same thing, but plotting differentially abundant OTUs around the two shift in microbial community identified in the RAMP adaptation treatment.
+
+```{r}
+# first microbial shift between steps 1 and 2
 ramp_12_otu <- read_tsv("ramp_12_lefse.txt", skip = 1)
 names(ramp_12_otu)[1] <- "OTUID"
 ramp_12_fams <- ramp_12_otu %>% 
@@ -780,15 +827,11 @@ ramp_12_lefse <- ramp_12_lefse %>%
   mutate(OTUID = as.integer(str_replace(OTUID, "OTU", ""))) %>% 
   left_join(ramp_12_fams, ., by = "OTUID") %>% 
   arrange(breaks, desc(LDA)) %>% 
-  write_tsv("Table_S2-1.txt")
-
-normalize_table <- function(x) {
-  x / sum(x)
-}
+  write_tsv("Table_S2-2.txt")
 
 ramp_table <- read_tsv("split_total/otu_table_tax_final__Diet_RAMP__filter.txt", skip = 1)
 names(ramp_table)[1] <- "OTUID"
-ramp_table %>% 
+ramp_12_otu_lefse <- ramp_table %>% 
   rename(R3_259 = R11, R2_343 = R12, R4_343 = R13, R4_259 = R14, R1_222 = R18, RF_343 = R20, RF_222 = R21, R2_222 = R23, R1_343 = R24, R3_343 = R3, R2_259 = R38, R3_222 = R4, R4_222 = R5, RF_259 = R7, R1_259 = R8) %>%
   select(OTUID, R1_222, R1_259, R1_343, R2_222, R2_259, R2_343)  %>% 
   mutate_each(funs(normalize_table), -OTUID) %>% 
@@ -798,71 +841,65 @@ ramp_table %>%
   ungroup() %>% 
   spread(key = sample, value = abundance) %>% 
   mutate(OTUID = as.integer(OTUID)) %>% 
-  inner_join(., ramp_12_lefse, by = "OTUID") %>% 
+  inner_join(ramp_12_lefse, by = "OTUID") %>% 
   arrange(breaks, desc(LDA))
 
-
 scalewhiteblack <- colorRampPalette(c("white", "black"), space = "rgb")(100)
 lmat = rbind(c(4,0,0),c(2,1,3))
 lwid = c(0.60,1.9,0.3)
 lhei = c(0.3,1.5)
 
-
-```
-
-
-```{r}
-
-ramp_12_fam_lefse
-
-ramp_biom <- read_biom("split_total/otu_table_tax_final__Diet_RAMP__filter.biom")
-ramp_table <- as.data.frame(as(biom_data(ramp_biom), "matrix"))
-colnames(ramp_table) <- c("R3_259", "R2_343", "R4_343", "R4_259", "R1_222", "RF_343", "RF_222", "R2_222", "R1_343", "R3_343", "R2_259", "R3_222", "R4_222", "RF_259", "R1_259")
-ramp_table <- ramp_table[c("R1_222", "R1_259", "R1_343", "R2_222", "R2_259", "R2_343", "R3_222", "R3_259", "R3_343", "R4_222", "R4_259", "R4_343", "RF_222", "RF_259", "RF_343")]
-ramp_12_table <- subset(ramp_table, select = c("R1_222", "R1_259", "R1_343", "R2_222", "R2_259", "R2_343"))
-
-
-
-ramp_12_trans <- as.data.frame(t(ramp_12_table))
-rowSums(ramp_12_trans)
-ramp_12_rel <- ramp_12_trans/rowSums(ramp_12_trans)
-
-ramp_12_rel
-as_data_frame(t(ramp_12_rel))
-
-scalewhiteblack <- colorRampPalette(c("white", "black"), space = "rgb")(100)
-maxab <- apply(ramp_12_rel, 2, max)
-n1 <- names(which(maxab < 0.01))
-ramp_12_rel2 <- ramp_12_rel[, -which(names(ramp_12_rel) %in% n1)]
-ramp_12_rel2 <- as.data.frame(t(ramp_12_rel2))
-
-ramp_12_merge <- merge(ramp_12_fam, ramp_12_rel2, by="row.names")
-
-
-
-row.names(ramp_12_merge) <- ramp_12_merge$Row.names
-ramp_12_merge <- ramp_12_merge[,-1]
-ramp_12_merge2 <- merge(ramp_12_merge, ramp_12_lefse, by="row.names")
-row.names(ramp_12_merge2) <- ramp_12_merge2$Row.names
-ramp_12_merge2 <- ramp_12_merge2[,-1]
-ramp_12_merge2 <- ramp_12_merge2[with(ramp_12_merge2, order(breaks)), ]
-
-lmat = rbind(c(4,0,0),c(2,1,3))
-lwid = c(0.60,1.9,0.3)
-lhei = c(0.3,1.5)
-
-ramp_12_fam2 <- subset(ramp_12_merge2, select=c(family))
-ramp_12_plot <- subset(ramp_12_merge2, select = -c(family,breaks,LDA,raw,pval))
-ramp_12_plot <- as.data.frame(t(ramp_12_plot))
-
-ramp_12_plot
-
-pdf("Figure3_panelB.pdf", width=12, height=9)
-heatmap.2(as.matrix(ramp_12_plot), Rowv = FALSE, Colv = FALSE, col = scalewhiteblack, margins = c(13, 9.5), trace = "none", density.info = "none", xlab = "", ylab = "", main = "", srtCol=67.5, cexCol=1.3, cexRow=2.0, lmat= lmat, lwid = lwid, lhei = lhei, labCol = ramp_12_fam2$family)
+pdf("Figure3_panelB.pdf", width = 12, height = 9)
+ramp_12_otu_lefse %>% 
+  select(starts_with("R", ignore.case = F)) %>% 
+  t() %>% 
+  heatmap.2(Rowv = F, Colv = F, col = scalewhiteblack, margins = c(13, 9.5), trace = "none", density.info = "none", xlab = "", ylab = "", main = "", srtCol = 67.5, cexCol = 1.3, cexRow = 2.0, lmat = lmat, lwid = lwid, lhei = lhei, labCol = ramp_12_otu_lefse$family)
 dev.off()
 
+  
+# second microbial shift between steps 2 and 3/4/F
+ramp_23_otu <- read_tsv("ramp_23_lefse.txt", skip = 1)
+names(ramp_23_otu)[1] <- "OTUID"
+ramp_23_fams <- ramp_23_otu %>% 
+  mutate(family = str_extract(taxonomy, "(?<=f__)[\\[\\]\\w\\d]+")) %>% 
+  mutate(family = str_replace_all(family, "[\\[\\]]", "")) %>% 
+  mutate(family = str_replace_na(family, replacement = "No Assigned Family")) %>% 
+  select(OTUID, family)
 
+ramp_23_lefse <- read_tsv("ramp_23_lefse_result.txt", col_names = F)
+ramp_23_lefse <- ramp_23_lefse %>% 
+  dplyr::rename(OTUID = X1, raw = X2, breaks = X3, LDA = X4, pval = X5) %>% 
+  mutate(OTUID = as.integer(str_replace(OTUID, "OTU", ""))) %>% 
+  left_join(ramp_23_fams, ., by = "OTUID") %>% 
+  arrange(breaks, desc(LDA)) %>% 
+  write_tsv("Table_S2-3.txt")
 
+ramp_23_otu_lefse <- ramp_table %>% 
+  rename(R3_259 = R11, R2_343 = R12, R4_343 = R13, R4_259 = R14, R1_222 = R18, RF_343 = R20, RF_222 = R21, R2_222 = R23, R1_343 = R24, R3_343 = R3, R2_259 = R38, R3_222 = R4, R4_222 = R5, RF_259 = R7, R1_259 = R8) %>%
+  select(OTUID, R2_222, R2_259, R2_343, R3_222, R3_259, R3_343, R4_222, R4_259, R4_343, RF_222, RF_259, RF_343)  %>% 
+  mutate_each(funs(normalize_table), -OTUID) %>% 
+  gather(R2_222:RF_343, key = sample, value = abundance) %>% 
+  group_by(OTUID) %>% 
+  filter(any(abundance > 0.01)) %>% 
+  ungroup() %>% 
+  spread(key = sample, value = abundance) %>% 
+  mutate(OTUID = as.integer(OTUID)) %>% 
+  inner_join(ramp_23_lefse, by = "OTUID") %>% 
+  arrange(breaks, desc(LDA))
 
+scalewhiteblack <- colorRampPalette(c("white", "black"), space = "rgb")(100)
+lmat = rbind(c(4,0,0),c(2,1,3))
+lwid = c(0.60,1.9,0.3)
+lhei = c(0.3,1.5)
+
+pdf("Figure3_panelC.pdf", width = 12, height = 9)
+ramp_23_otu_lefse %>% 
+  select(starts_with("R", ignore.case = F)) %>% 
+  t() %>% 
+  heatmap.2(Rowv = F, Colv = F, col = scalewhiteblack, margins = c(13, 9.5), trace = "none", density.info = "none", xlab = "", ylab = "", main = "", srtCol = 67.5, cexCol = 1.3, cexRow = 2.0, lmat = lmat, lwid = lwid, lhei = lhei, labCol = ramp_23_otu_lefse$family)
+dev.off()
 ```
+
+
+
 

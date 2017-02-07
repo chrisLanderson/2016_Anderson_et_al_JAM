@@ -13,9 +13,12 @@ bash Anaconda-2.3.0-MacOSX-x86_64.sh
 git clone https://github.com/chrisLanderson/2016_Anderson_et_al_JAM
 cd 2016_Anderson_et_al_JAM
 
-
 anaconda/bin/conda create -y -n rumenEnv python=2.7
 source anaconda/bin/activate rumenEnv
+anaconda/bin/conda config --add channels conda-forge
+anaconda/bin/conda config --add channels defaults
+anaconda/bin/conda config --add channels r
+anaconda/bin/conda config --add channels bioconda
 anaconda/bin/conda install -y --file conda_packages.txt -c bioconda -c r -c biobuilds
 
 wget -O anaconda/envs/rumenEnv/bin/usearch $1
@@ -24,16 +27,10 @@ chmod 775 anaconda/envs/rumenEnv/bin/usearch
 "Rscript -e "rmarkdown::render('acclimation.Rmd')""
 
 
-#anaconda/bin/conda create -y -n rumenEnv python=2.7
-#source anaconda/bin/activate rumenEnv
-#anaconda/bin/conda install -y -c bioconda qiime=1.9.1 fastx_toolkit=0.0.14
-#anaconda/bin/conda install -y -c r r=3.3.2 r-rmarkdown=1.2 r-knitr=1.15.1
-#anaconda/bin/conda install -y -c biobuilds mothur=1.38.1
-#anaconda/bin/conda install -y -c r r-packrat=0.4.8_1
-#anaconda/bin/conda install -y -c r rpy2=2.8.5
-#anaconda/bin/conda install -y -c r r-mvtnorm=1.0_5
-#anaconda/bin/conda install -y -c r r-modeltools=0.2_21
-#anaconda/bin/conda install -c r r-coin=1.1_3
-
+# anaconda/bin/conda create -y -n rumenEnv python=2.7
+# source anaconda/bin/activate rumenEnv
+# anaconda/bin/conda install -y -c bioconda qiime=1.9.1 fastx_toolkit=0.0.14
+# anaconda/bin/conda install -y -c r r=3.3.2 r-rmarkdown=1.2 r-knitr=1.15.1
+# etc..
 
 #anaconda/bin/conda list -n rumenEnv --export > conda_packages.txt
