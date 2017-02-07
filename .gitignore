@@ -17,7 +17,6 @@ mult_*
 mapping_*
 remove*
 *.fasta
-run.sh
 trunc*
 packrat*
 qiime*
