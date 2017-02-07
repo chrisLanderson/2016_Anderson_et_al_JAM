@@ -3,7 +3,9 @@ This is an updated analysis of **Anderson et al. JAM manuscript "Rumen bacterial
 The R Markdown file in this repository contains the code for the analysis. Due to licensing issues, USEARCH can not be included in the setup automatically. To obtain a download link, go to the USEARCH [download page](http://www.drive5.com/usearch/download.html and select version USEARCH v7.0.1090 for Mac OSX. Our current work has moved to vsearch, an open source alternative to USEARCH, but for reproducibility of the original work USEARCH is still implemented in the current analysis.
 
 To start the analysis:
+
 	1. wget https://raw.githubusercontent.com/chrisLanderson/2016_Anderson_et_al_JAM/master/run.sh
+
 	2. run.sh usearch_link
 
 The analysis is setup to run in a Mac OS X environment, but can be easily switched to run in linux by uncommenting/commenting the appropriate lines in run.sh for anaconda installation and downloaded a linux version of USEARCH.
