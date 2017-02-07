@@ -6,7 +6,7 @@ To start the analysis:
 
 	wget https://raw.githubusercontent.com/chrisLanderson/2016_Anderson_et_al_JAM/master/run.sh
 
-	run.sh usearch_link
+	bash run.sh usearch_link
 
 The analysis is setup to run in a Mac OS X environment, but can be easily switched to run in linux by uncommenting/commenting the appropriate lines in run.sh for anaconda installation and downloaded a linux version of USEARCH.
 
