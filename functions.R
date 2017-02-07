@@ -50,3 +50,6 @@ seq_shared <- function(x) {
   write(out, file = "TableS3_.txt", sep = "\t", ncolumns = 5, append = TRUE)
 }
 
+normalize_table <- function(x) {
+  x / sum(x)
+}

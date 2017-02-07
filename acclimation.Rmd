@@ -590,7 +590,7 @@ Write shared number of sequences between treatments to file.
 
 ```{r}
 collapse_biom <- read_biom("otu_table_collapse_samples.biom")
-collapse_df <- as.data.frame(as(biom_data(collapse_biom), "matrix"))
+collapse_df <- as_data_frame(as(biom_data(collapse_biom), "matrix"))
 collapse_tib <- as_tibble(rownames_to_column(collapse_df))
 collapse_tidy <- collapse_tib %>% 
   dplyr::rename(otu = rowname) %>% 
@@ -606,10 +606,10 @@ combn_output <- combn(unique(collapse_tidy$sample), 2, simplify = FALSE, FUN = s
 
 ```{r}
 otu_table_biom <- read_biom("otu_table_tax_final.biom")
-otu_table <- as.data.frame(as(biom_data(otu_table_biom), "matrix"))
+otu_table <- as_data_frame(as(biom_data(otu_table_biom), "matrix"))
 row.names(otu_table) <- otu_table$OTU.ID
 colnames(otu_table) <- c("CF_332", "R3_259", "R2_343", "R4_343", "R4_259", "C3_346", "C4_332", "R1_222", "CF_346", "RF_343", "RF_222", "C3_332", "R2_222", "R1_343", "R3_343", "C1_346", "C2_332", "R2_259", "R3_222", "C1_332", "C2_346", "R4_222", "RF_259", "R1_259", "C4_346")
-otu_table_trans <- as.data.frame(t(otu_table))
+otu_table_trans <- as_data_frame(t(otu_table))
 otu_table_rel <- otu_table_trans/rowSums(otu_table_trans)
 scalewhiteblack <- colorRampPalette(c("white", "black"), space = "rgb")(100)
 otu_dist <- vegdist(otu_table_rel, method = "bray")
@@ -689,7 +689,7 @@ filter_otus_from_otu_table.py -i split_total/otu_table_tax_final__Diet_RAMP__.bi
 
 ```{r}
 corn_biom <- read_biom("split_total/otu_table_tax_final__Diet_Corn__filter.biom")
-corn_table <- as.data.frame(as(biom_data(corn_biom), "matrix"))
+corn_table <- as_data_frame(as(biom_data(corn_biom), "matrix"))
 corn_rel <- sweep(corn_table, 2, colSums(corn_table), FUN = "/")
 rownames(corn_rel) <- paste("OTU", rownames(corn_rel), sep = "")
 corn_rel2 <- corn_rel[0, ]
@@ -700,7 +700,7 @@ corn_rel_merge <- rbind(corn_rel2, corn_rel)
 write.table(corn_rel_merge, sep = "\t", file = "split_total/otu_table_tax_final__Diet_Corn__filter_relative.txt", row.names = TRUE, col.names = FALSE, quote = FALSE)
 
 ramp_biom <- read_biom("split_total/otu_table_tax_final__Diet_RAMP__filter.biom")
-ramp_table <- as.data.frame(as(biom_data(ramp_biom), "matrix"))
+ramp_table <- as_data_frame(as(biom_data(ramp_biom), "matrix"))
 ramp_rel <- sweep(ramp_table, 2, colSums(ramp_table), FUN="/")
 rownames(ramp_rel) <- paste("OTU", rownames(ramp_rel), sep="")
 ramp_rel2 <- ramp_rel[0,]
@@ -731,76 +731,138 @@ python lefse/format_input.py split_total/otu_table_tax_final__Diet_RAMP__filter_
 python lefse/run_lefse.py ramp_23_lefse_format.txt ramp_23_lefse_result.txt
 ```
 
+```{r}
+corn_lefse <- read_tsv("corn_lefse_result.txt", col_names = F)
+corn_lefse %>% 
+  filter(X4 != "NA") %>% 
+  mutate(X1 = str_replace(X1, "OTU", "")) %$% 
+  write(X1, "corn_lefse_otus.txt")
+
+ramp_12_lefse <- read_tsv("ramp_12_lefse_result.txt", col_names = F)
+ramp_12_lefse %>% 
+  filter(X4 != "NA") %>% 
+  mutate(X1 = str_replace(X1, "OTU", "")) %$% 
+  write(X1, "ramp_12_lefse_otus.txt")
+
+ramp_23_lefse <- read_tsv("ramp_23_lefse_result.txt", col_names = F)
+ramp_23_lefse %>% 
+  filter(X4 != "NA") %>% 
+  mutate(X1 = str_replace(X1, "OTU", "")) %$% 
+  write(X1, "ramp_23_lefse_otus.txt")
+
+```
+
+```{r, engine='bash'}
+filter_otus_from_otu_table.py -i split_total/otu_table_tax_final__Diet_Corn__filter.biom -o corn_lefse.biom -e corn_lefse_otus.txt --negate_ids_to_exclude
+biom convert -i corn_lefse.biom -o corn_lefse.txt --table-type="OTU table" --to-tsv --header-key taxonomy
+
+filter_otus_from_otu_table.py -i split_total/otu_table_tax_final__Diet_RAMP__filter.biom -o ramp_12_lefse.biom -e ramp_12_lefse_otus.txt --negate_ids_to_exclude
+biom convert -i ramp_12_lefse.biom -o  ramp_12_lefse.txt --table-type="OTU table" --to-tsv --header-key taxonomy
+
+filter_otus_from_otu_table.py -i split_total/otu_table_tax_final__Diet_RAMP__filter.biom -o ramp_23_lefse.biom -e ramp_23_lefse_otus.txt --negate_ids_to_exclude
+biom convert -i ramp_23_lefse.biom -o  ramp_23_lefse.txt --table-type="OTU table" --to-tsv --header-key taxonomy
+```
+
 One shift in the microbial community was identified in the corn-adaptation program. Here, we plot the heatmap for OTUs identified as having a significantly different abundance around this shift. The resulting heatmap only displays OTUs with a maximum relative abundance >1% and are sorted by LDA score.
 
 ```{r}
+ramp_12_otu <- read_tsv("ramp_12_lefse.txt", skip = 1)
+names(ramp_12_otu)[1] <- "OTUID"
+ramp_12_fams <- ramp_12_otu %>% 
+  mutate(family = str_extract(taxonomy, "(?<=f__)[\\[\\]\\w\\d]+")) %>% 
+  mutate(family = str_replace_all(family, "[\\[\\]]", "")) %>% 
+  mutate(family = str_replace_na(family, replacement = "No Assigned Family")) %>% 
+  select(OTUID, family)
+
+ramp_12_lefse <- read_tsv("ramp_12_lefse_result.txt", col_names = F)
+ramp_12_lefse <- ramp_12_lefse %>% 
+  dplyr::rename(OTUID = X1, raw = X2, breaks = X3, LDA = X4, pval = X5) %>% 
+  mutate(OTUID = as.integer(str_replace(OTUID, "OTU", ""))) %>% 
+  left_join(ramp_12_fams, ., by = "OTUID") %>% 
+  arrange(breaks, desc(LDA)) %>% 
+  write_tsv("Table_S2-1.txt")
+
+normalize_table <- function(x) {
+  x / sum(x)
+}
+
+ramp_table <- read_tsv("split_total/otu_table_tax_final__Diet_RAMP__filter.txt", skip = 1)
+names(ramp_table)[1] <- "OTUID"
+ramp_table %>% 
+  rename(R3_259 = R11, R2_343 = R12, R4_343 = R13, R4_259 = R14, R1_222 = R18, RF_343 = R20, RF_222 = R21, R2_222 = R23, R1_343 = R24, R3_343 = R3, R2_259 = R38, R3_222 = R4, R4_222 = R5, RF_259 = R7, R1_259 = R8) %>%
+  select(OTUID, R1_222, R1_259, R1_343, R2_222, R2_259, R2_343)  %>% 
+  mutate_each(funs(normalize_table), -OTUID) %>% 
+  gather(R1_222:R2_343, key = sample, value = abundance) %>% 
+  group_by(OTUID) %>% 
+  filter(any(abundance > 0.01)) %>% 
+  ungroup() %>% 
+  spread(key = sample, value = abundance) %>% 
+  mutate(OTUID = as.integer(OTUID)) %>% 
+  inner_join(., ramp_12_lefse, by = "OTUID") %>% 
+  arrange(breaks, desc(LDA))
 
 
-
-
+scalewhiteblack <- colorRampPalette(c("white", "black"), space = "rgb")(100)
+lmat = rbind(c(4,0,0),c(2,1,3))
+lwid = c(0.60,1.9,0.3)
+lhei = c(0.3,1.5)
 
 
 ```
 
 
-
-
-
 ```{r}
-corn_otu <- read.table("corn_lefse_tax.txt", header=TRUE, sep="\t", fill=TRUE)
-corn_otu$family <- sub("f__", "", corn_otu$family)
-corn_otu$family <- sub("\\]", "", corn_otu$family)
-corn_otu$family <- sub("\\[", "", corn_otu$family)
-corn_otu$family <- sub("^$", "No Assigned Family", corn_otu$family)
-row.names(corn_otu) <- corn_otu$OTU.ID
-corn_otu <- corn_otu[,-1]
-corn_fam <- subset(corn_otu, select=c(family))
 
-corn_lefse <- read.table("corn_lefse_result.txt", header=FALSE, sep="\t")
-corn_lefse$V1 <- sub("OTU", "", corn_lefse$V1)
-colnames(corn_lefse) <- c("OTU.ID","raw","breaks","LDA","pval")
-row.names(corn_lefse) <- corn_lefse$OTU.ID
-corn_lefse <- corn_lefse[,-1]
+ramp_12_fam_lefse
 
-corn_fam_lefse <- merge(corn_fam, corn_lefse, by="row.names")
-corn_fam_lefse <- corn_fam_lefse[with(corn_fam_lefse, order(breaks, -LDA)), ]
-corn_supp_table <- subset(corn_fam_lefse, select=c(family,breaks))
-write.table(corn_supp_table, file="TableS2-1.txt", sep="\t", quote = FALSE, col.names = NA)
+ramp_biom <- read_biom("split_total/otu_table_tax_final__Diet_RAMP__filter.biom")
+ramp_table <- as.data.frame(as(biom_data(ramp_biom), "matrix"))
+colnames(ramp_table) <- c("R3_259", "R2_343", "R4_343", "R4_259", "R1_222", "RF_343", "RF_222", "R2_222", "R1_343", "R3_343", "R2_259", "R3_222", "R4_222", "RF_259", "R1_259")
+ramp_table <- ramp_table[c("R1_222", "R1_259", "R1_343", "R2_222", "R2_259", "R2_343", "R3_222", "R3_259", "R3_343", "R4_222", "R4_259", "R4_343", "RF_222", "RF_259", "RF_343")]
+ramp_12_table <- subset(ramp_table, select = c("R1_222", "R1_259", "R1_343", "R2_222", "R2_259", "R2_343"))
 
-corn_biom <- read_biom("split_total/rumen.adaptation.otu_table.tax.final__Diet_Corn__.filter.biom")
-corn_table <- as.data.frame(as(biom_data(corn_biom), "matrix"))
-colnames(corn_table) <- c("CF_332", "C3_346", "C4_332", "CF_346", "C3_332", "C1_346", "C2_332", "C1_332", "C2_346", "C4_346")
-corn_table <- corn_table[c("C1_346", "C1_332", "C2_346", "C2_332", "C3_346", "C3_332", "C4_346", "C4_332", "CF_346", "CF_332")]
-corn_trans <- as.data.frame(t(corn_table))
-corn_rel <- corn_trans/rowSums(corn_trans)
+
+
+ramp_12_trans <- as.data.frame(t(ramp_12_table))
+rowSums(ramp_12_trans)
+ramp_12_rel <- ramp_12_trans/rowSums(ramp_12_trans)
+
+ramp_12_rel
+as_data_frame(t(ramp_12_rel))
+
 scalewhiteblack <- colorRampPalette(c("white", "black"), space = "rgb")(100)
-maxab <- apply(corn_rel, 2, max)
+maxab <- apply(ramp_12_rel, 2, max)
 n1 <- names(which(maxab < 0.01))
-corn_rel2 <- corn_rel[, -which(names(corn_rel) %in% n1)]
-corn_rel2 <- as.data.frame(t(corn_rel2))
+ramp_12_rel2 <- ramp_12_rel[, -which(names(ramp_12_rel) %in% n1)]
+ramp_12_rel2 <- as.data.frame(t(ramp_12_rel2))
 
-corn_merge <- merge(corn_fam, corn_rel2, by="row.names")
-row.names(corn_merge) <- corn_merge$Row.names
-corn_merge <- corn_merge[,-1]
-corn_merge2 <- merge(corn_merge, corn_lefse, by="row.names")
-row.names(corn_merge2) <- corn_merge2$Row.names
-corn_merge2 <- corn_merge2[,-1]
-corn_merge2 <- corn_merge2[with(corn_merge2, order(breaks, -LDA)), ]
+ramp_12_merge <- merge(ramp_12_fam, ramp_12_rel2, by="row.names")
+
+
+
+row.names(ramp_12_merge) <- ramp_12_merge$Row.names
+ramp_12_merge <- ramp_12_merge[,-1]
+ramp_12_merge2 <- merge(ramp_12_merge, ramp_12_lefse, by="row.names")
+row.names(ramp_12_merge2) <- ramp_12_merge2$Row.names
+ramp_12_merge2 <- ramp_12_merge2[,-1]
+ramp_12_merge2 <- ramp_12_merge2[with(ramp_12_merge2, order(breaks)), ]
 
 lmat = rbind(c(4,0,0),c(2,1,3))
 lwid = c(0.60,1.9,0.3)
 lhei = c(0.3,1.5)
 
-corn_fam2 <- subset(corn_merge2, select=c(family))
-corn_plot <- subset(corn_merge2, select = -c(family,breaks,LDA,raw,pval))
-corn_plot <- as.data.frame(t(corn_plot))
+ramp_12_fam2 <- subset(ramp_12_merge2, select=c(family))
+ramp_12_plot <- subset(ramp_12_merge2, select = -c(family,breaks,LDA,raw,pval))
+ramp_12_plot <- as.data.frame(t(ramp_12_plot))
 
-pdf("Figure3_panelA.pdf", width=12, height=9)
-heatmap.2(as.matrix(corn_plot), Rowv = FALSE, Colv = FALSE, col = scalewhiteblack, margins = c(13, 9.5), trace = "none", density.info = "none", xlab = "", ylab = "", main = "", srtCol=67.5, cexCol=1.3, cexRow=2.0, lmat= lmat, lwid = lwid, lhei = lhei, labCol = corn_fam2$family)
+ramp_12_plot
+
+pdf("Figure3_panelB.pdf", width=12, height=9)
+heatmap.2(as.matrix(ramp_12_plot), Rowv = FALSE, Colv = FALSE, col = scalewhiteblack, margins = c(13, 9.5), trace = "none", density.info = "none", xlab = "", ylab = "", main = "", srtCol=67.5, cexCol=1.3, cexRow=2.0, lmat= lmat, lwid = lwid, lhei = lhei, labCol = ramp_12_fam2$family)
 dev.off()
 
-png("Figure3_panelA.png", width=12, height=9, units='in', res=300)
-heatmap.2(as.matrix(corn_plot), Rowv = FALSE, Colv = FALSE, col = scalewhiteblack, margins = c(13, 9.5), trace = "none", density.info = "none", xlab = "", ylab = "", main = "", srtCol=67.5, cexCol=1.3, cexRow=2.0, lmat= lmat, lwid = lwid, lhei = lhei, labCol = corn_fam2$family)
-dev.off()
+
+
+
 ```
 
