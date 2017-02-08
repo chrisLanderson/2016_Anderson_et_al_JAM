@@ -11,7 +11,6 @@ bash Anaconda-2.3.0-MacOSX-x86_64.sh
 #bash Anaconda-2.3.0-Linux-x86_64.sh
 
 git clone https://github.com/chrisLanderson/2016_Anderson_et_al_JAM
-cd 2016_Anderson_et_al_JAM
 
 anaconda/bin/conda create -y -n rumenEnv python=2.7
 source anaconda/bin/activate rumenEnv
@@ -24,6 +23,7 @@ anaconda/bin/conda install -y --file conda_packages.txt -c bioconda -c r -c biob
 wget -O anaconda/envs/rumenEnv/bin/usearch $1
 chmod 775 anaconda/envs/rumenEnv/bin/usearch
 
+cd 2016_Anderson_et_al_JAM
 "Rscript -e "rmarkdown::render('acclimation.Rmd')""
 
 
