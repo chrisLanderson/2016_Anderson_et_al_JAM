@@ -43,7 +43,7 @@ tar -zxvf rumen_acclimation.tar.gz
 
 curl -LO 'http://www.mothur.org/w/images/2/27/Silva.nr_v119.tgz'
 tar -zxvf Silva.nr_v119.tgz
-rm -rf Silva.nr_v119.tgz silva.nr_v119.tax
+rm -rf Silva.nr_v119.tgz silva.nr_v119.tax Anaconda-2.3.0-MacOSX-x86_64.sh
 ```
 
 ## Demulitplex and Quality Control
