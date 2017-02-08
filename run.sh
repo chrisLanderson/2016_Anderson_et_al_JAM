@@ -29,4 +29,4 @@ Rscript -e "rmarkdown::render('acclimation.Rmd')"
 # anaconda/bin/conda install -y -c r r=3.3.2 r-rmarkdown=1.2 r-knitr=1.15.1
 # etc..
 
-#anaconda/bin/conda list -n rumenEnv --export > conda_packages.txt
+# anaconda/bin/conda list -n rumenEnv --export > conda_packages.txt
