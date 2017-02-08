@@ -4,8 +4,8 @@ The R Markdown file in this repository contains the code for the analysis. Due t
 
 To start the analysis:
 
-	wget https://raw.githubusercontent.com/chrisLanderson/2016_Anderson_et_al_JAM/master/run.sh
-
+	git clone https://github.com/chrisLanderson/2016_Anderson_et_al_JAM
+	cd 2016_Anderson_et_al_JAM
 	bash run.sh usearch_link
 
 During the installation of anaconda you will be prompted to agree to terms and also for the location to install. For the installation directory, type *anaconda*. Additionally, enter *no* when asked if you want to add the installation to .bash_profile.

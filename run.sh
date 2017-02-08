@@ -21,8 +21,6 @@ anaconda/bin/conda install -y --file conda_packages.txt -c bioconda -c r -c biob
 wget -O anaconda/envs/rumenEnv/bin/usearch $1
 chmod 775 anaconda/envs/rumenEnv/bin/usearch
 
-git clone https://github.com/chrisLanderson/2016_Anderson_et_al_JAM
-cd 2016_Anderson_et_al_JAM
 Rscript -e "rmarkdown::render('acclimation.Rmd')"
 
 
