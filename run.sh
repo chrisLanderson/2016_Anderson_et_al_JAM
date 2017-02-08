@@ -24,7 +24,7 @@ wget -O anaconda/envs/rumenEnv/bin/usearch $1
 chmod 775 anaconda/envs/rumenEnv/bin/usearch
 
 cd 2016_Anderson_et_al_JAM
-"Rscript -e "rmarkdown::render('acclimation.Rmd')""
+Rscript -e "rmarkdown::render('acclimation.Rmd')"
 
 
 # anaconda/bin/conda create -y -n rumenEnv python=2.7
