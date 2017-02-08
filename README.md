@@ -8,7 +8,7 @@ To start the analysis:
 
 	bash run.sh usearch_link
 
-During the installation of anaconda you will be prompted to agree to terms and also for the location to install. For the installation directory, type *anaconda*.
+During the installation of anaconda you will be prompted to agree to terms and also for the location to install. For the installation directory, type *anaconda*. Additionally, enter *no* when asked if you want to add the installation to .bash_profile.
 
 The analysis is setup to run in a Mac OS X environment, but can be easily switched to run in linux by uncommenting/commenting the appropriate lines in run.sh for anaconda installation and downloaded a linux version of USEARCH.
 
