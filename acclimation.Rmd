@@ -3,6 +3,7 @@ title: Rumen bacterial communities can be acclimated faster to high concentrate 
 author: "Christopher L. Anderson (canderson30@unl.edu)"
 output:
   github_document: default
+  github_notebook: default
 ---
 This is an updated analysis of [Anderson et al. JAM manuscript]  (http://onlinelibrary.wiley.com/doi/10.1111/jam.13039/full)". The outputs generated through this analysis are identical to those of the [original analysis] (https://github.com/chrisLanderson/old_Anderson_et_al_JAM_Acclimation). Updated analysis was conducted to mostly attempt better coding and reproducible research practices.
 
