@@ -17,7 +17,6 @@ source anaconda/bin/activate rumenEnv
 wget -O anaconda/envs/rumenEnv/bin/usearch $1
 chmod 775 anaconda/envs/rumenEnv/bin/usearch
 
-
 Rscript -e "rmarkdown::render('acclimation.Rmd')"
 
 

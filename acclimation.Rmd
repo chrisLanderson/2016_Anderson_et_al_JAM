@@ -22,6 +22,8 @@ library(vegan)
 library(biom)
 library(gplots)
 library(RColorBrewer)
+library(Biostrings)
+library(Heatplus)
 ```
 
 ```{r knitr.settings, eval=T, echo=F, results = "hide"}
@@ -30,6 +32,7 @@ opts_chunk$set("echo" = T)
 opts_chunk$set("eval" = T)
 opts_chunk$set("warning" = F)
 opts_chunk$set("message" = F)
+opts_chunk$set("cache" = T)
 ```
 
 ```{r}
@@ -45,7 +48,7 @@ Raw data is provided in the github repository, but needs to be uncompressed. Add
 tar -zxvf rumen_acclimation.tar.gz
 curl -LO 'http://www.mothur.org/w/images/2/27/Silva.nr_v119.tgz'
 tar -zxvf Silva.nr_v119.tgz
-rm -rf Silva.nr_v119.tgz silva.nr_v119.tax
+rm -rf Silva.nr_v119.tgz silva.nr_v119.tax Miniconda2-4.2.12-MacOSX-x86_64.sh README*
 ```
 
 ## Demulitplex and Quality Control
