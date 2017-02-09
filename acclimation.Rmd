@@ -3,28 +3,28 @@ title: Rumen bacterial communities can be acclimated faster to high concentrate 
 author: "Christopher L. Anderson (canderson30@unl.edu)"
 output:
   github_document: default
-  html_notebook: default
-  html_document: default
 ---
+This is an updated analysis of [Anderson et al. JAM manuscript]  (http://onlinelibrary.wiley.com/doi/10.1111/jam.13039/full)". The outputs generated through this analysis are identical to those of the [original analysis] (https://github.com/chrisLanderson/old_Anderson_et_al_JAM_Acclimation). Updated analysis was conducted to mostly attempt better coding and reproducible research practices.
 
 ## Data Curation
 
 Raw data is provided in the github repository already, but need to download other files essential to the analysis, including the SILVA v119 reference files. Additionally, here we 'unbundle' and install packages that are needed for the analysis with Packrat.
 
 ```{r, results="hide"}
-library(Biostrings)
-library(stringr)
-library(tidyverse)
-library(XML)
-library(forcats)
-library(rmarkdown)
 library(knitr)
+library(rmarkdown)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(ggplot2)
+library(magrittr)
+library(stringr)
+library(XML)
 library(grid)
 library(vegan)
-library(magrittr)
 library(biom)
 library(gplots)
-library(Heatplus)
 library(RColorBrewer)
 
 source("functions.R")
@@ -40,10 +40,9 @@ opts_chunk$set("message" = F)
 
 ```{r, engine="bash", results="hide"}
 tar -zxvf rumen_acclimation.tar.gz
-
 curl -LO 'http://www.mothur.org/w/images/2/27/Silva.nr_v119.tgz'
 tar -zxvf Silva.nr_v119.tgz
-rm -rf Silva.nr_v119.tgz silva.nr_v119.tax Anaconda-2.3.0-MacOSX-x86_64.sh
+rm -rf Silva.nr_v119.tgz silva.nr_v119.tax
 ```
 
 ## Demulitplex and Quality Control

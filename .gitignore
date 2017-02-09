@@ -22,3 +22,6 @@ packrat*
 qiime*
 gold.fasta
 *Rproj
+packrat/lib*/
+packrat/src/
+.Rproj.user
