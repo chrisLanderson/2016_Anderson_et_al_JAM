@@ -3,31 +3,33 @@ title: Rumen bacterial communities can be acclimated faster to high concentrate 
 author: "Christopher L. Anderson (canderson30@unl.edu)"
 output:
   github_document: default
-  github_notebook: default
+  html_notebook: default
 ---
 This is an updated analysis of [Anderson et al. JAM manuscript]  (http://onlinelibrary.wiley.com/doi/10.1111/jam.13039/full)". The outputs generated through this analysis are identical to those of the [original analysis] (https://github.com/chrisLanderson/old_Anderson_et_al_JAM_Acclimation). Updated analysis was conducted to mostly attempt better coding and reproducible research practices.
 
-```{r, results="hide", eval=T, echo=F}
-library(knitr)
-library(rmarkdown)
-library(dplyr)
-library(tidyr)
-library(readr)
-library(purrr)
-library(ggplot2)
+Recent studies have demonstrated RAMP, a complete starter feed, to have beneficial effects for animal performance. To understand if RAMP adaptation results in changes in the rumen bacterial community that can potentially affect animal performance, we investigated the dynamics of rumen bacterial community composition in corn‐adapted and RAMP‐adapted cattle.W e compared the bacterial community dynamics in corn and RAMP‐adapted using 16S rRNA gene amplicon sequencing.
+
+```{r, results = "hide", eval = T, echo = F}
+install.packages(c("biom", "vegan"), repos = "http://cran.us.r-project.org")
+source("http://bioconductor.org/biocLite.R")
+biocLite("Biostrings", suppressUpdates = T)
+biocLite("Heatplus", suppressUpdates = T)
+
+library(biom)
+library(vegan)
+library(tidyverse)
 library(magrittr)
 library(stringr)
+library(forcats)
 library(XML)
 library(grid)
-library(vegan)
-library(biom)
 library(gplots)
 library(RColorBrewer)
 library(Biostrings)
 library(Heatplus)
 ```
 
-```{r knitr.settings, eval=T, echo=F, results = "hide"}
+```{r knitr.settings, eval = T, echo = F, results = "hide"}
 opts_chunk$set("tidy" = T)
 opts_chunk$set("echo" = T)
 opts_chunk$set("eval" = T)
@@ -109,7 +111,7 @@ python usearch_python_scripts/uc2otutab.py usearch_out/otu_map.uc > otu_table.tx
 assign_taxonomy.py -i usearch_out/otus2.fasta -t anaconda/envs/rumenEnv/lib/python2.7/site-packages/qiime_default_reference/gg_13_8_otus/taxonomy/97_otu_taxonomy.txt -r anaconda/envs/rumenEnv/lib/python2.7/site-packages/qiime_default_reference/gg_13_8_otus/rep_set/97_otus.fasta -o assign_taxa -m mothur
 ```
 
-Add the taxa to the OTU table with the column header "taxonomy" and output the resulting file to biom format.
+Add assigned taxa to the OTU table with the column header "taxonomy" and convert the resulting file to biom format.
 
 ```{r, engine='bash'}
 awk 'NR==1; NR > 1 {print $0 | "sort"}' otu_table.txt > otu_table_sort.txt 
@@ -123,30 +125,6 @@ paste otu_table_sort.txt <(cut -f 2 assign_taxa/otus2_tax_assignments_sort_label
 rm otu_table_sort.txt
 
 biom convert --table-type "OTU table" -i otu_table_tax.txt -o otu_table_tax.biom --process-obs-metadata taxonomy --to-json
-```
-
-Summarize taxonomy based on those assignments that go to at least the genera and family levels.
-
-```{r, engine="bash"}
-biom convert --table-type "OTU table" -i otu_table_tax_final.biom -o otu_table_tax_final.txt --header-key taxonomy --output-metadata-id "taxonomy" --to-tsv
-
-# summarize by genera
-head -n 2 otu_table_tax_final.txt > otu_table_tax_genus.txt
-
-grep "g__[a-zA-Z0-9]" otu_table_tax_final.txt >> otu_table_tax_genus.txt
-
-biom convert --table-type "OTU table" -i otu_table_tax_genus.txt -o otu_table_tax_genus.biom --process-obs-metadata taxonomy --to-json
-
-biom summarize-table -i otu_table_tax_genus.biom -o otu_table_tax_genus_summary.txt
-
-# summarize by family
-head -n 2 otu_table_tax_final.txt > otu_table_tax_family.txt
-
-grep "f__[a-zA-Z0-9]" otu_table_tax_final.txt >> otu_table_tax_family.txt 
-
-biom convert --table-type "OTU table" -i otu_table_tax_family.txt -o otu_table_tax_family.biom --process-obs-metadata taxonomy --to-json
-
-biom summarize-table -i otu_table_tax_family.biom -o otu_table_tax_family_summary.txt
 ```
 
 ## Filter Reads
@@ -174,13 +152,13 @@ mothur "#summary.seqs(fasta=otus2.align)"
 Use R to find the OTUs with poor alignments via the summary file generated above. Decided to remove OTUs that did not end exactly at position 13125 (remember this is the end we sequenced off of...) and started before position 1726.
 
 ```{r}
-summary <- read_tsv("otus2.summary")
-filtered_otus <- filter(summary, end == 13125 & start > 1726) %>% 
-  select(seqname)
-write_tsv(filtered_otus, "remove_otus.txt", col_names = F)
+read_tsv("otus2.summary") %>% 
+  filter(end == 13125 & start > 1726) %>% 
+  select(seqname) %>% 
+  write_tsv("remove_otus.txt", col_names = F)
 ```
 
-Next, remove those OTUs that did not align well from the OTU table, and additionally, those OTUs with a Cyanobacteria classification. UPARSE should have removed sinlgeton OTUs, but while we are removing OTUs we want to double check this is the case (-n 2 parameter).
+Next, remove those OTUs that did not align well and additionally, OTUs with a Cyanobacteria classification. UPARSE should have removed sinlgeton OTUs, but while we are removing OTUs we want to ensure this is the case (-n 2 parameter).
 
 ```{r, engine='bash'}
 filter_otus_from_otu_table.py -i otu_table_tax_filter.biom -o otu_table_tax_filter2.biom -e remove_otus.txt -n 2 --negate_ids_to_exclude
@@ -188,6 +166,30 @@ filter_otus_from_otu_table.py -i otu_table_tax_filter.biom -o otu_table_tax_filt
 filter_taxa_from_otu_table.py -i otu_table_tax_filter2.biom -o otu_table_tax_final.biom -n p__Cyanobacteria
 
 biom summarize-table -i otu_table_tax_final.biom -o otu_table_tax_final_summary.txt
+```
+
+Summarize taxonomy based on those assignments that go to at least the genera and family levels.
+
+```{r, engine="bash"}
+biom convert --table-type "OTU table" -i otu_table_tax_final.biom -o otu_table_tax_final.txt --header-key taxonomy --output-metadata-id "taxonomy" --to-tsv
+
+# summarize by genera
+head -n 2 otu_table_tax_final.txt > otu_table_tax_genus.txt
+
+grep "g__[a-zA-Z0-9]" otu_table_tax_final.txt >> otu_table_tax_genus.txt
+
+biom convert --table-type "OTU table" -i otu_table_tax_genus.txt -o otu_table_tax_genus.biom --process-obs-metadata taxonomy --to-json
+
+biom summarize-table -i otu_table_tax_genus.biom -o otu_table_tax_genus_summary.txt
+
+# summarize by family
+head -n 2 otu_table_tax_final.txt > otu_table_tax_family.txt
+
+grep "f__[a-zA-Z0-9]" otu_table_tax_final.txt >> otu_table_tax_family.txt 
+
+biom convert --table-type "OTU table" -i otu_table_tax_family.txt -o otu_table_tax_family.biom --process-obs-metadata taxonomy --to-json
+
+biom summarize-table -i otu_table_tax_family.biom -o otu_table_tax_family_summary.txt
 ```
 
 ## Phylogenetic Tree of OTU Representative Sequences
@@ -358,6 +360,7 @@ mapping <- mapping %>%
   mutate(permu_treat = map2(dists, data, ~permutest(betadisper(.x, .y$Treatment)))) %>% 
   mutate(permu_animal = map2(dists, data, ~permutest(betadisper(.x, .y$AnimalID))))
 ```
+
 Results of statistical tests were saved in the data frame...print them to screen.
 
 ```{r}

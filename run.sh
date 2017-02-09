@@ -10,17 +10,16 @@ bash Miniconda2-4.2.12-MacOSX-x86_64.sh -b -p anaconda
 #wget https://repo.continuum.io/miniconda/Miniconda2-4.2.12-Linux-x86_64.sh
 #bash Miniconda2-4.2.12-Linux-x86_64.sh -b -p anaconda
 
-# anaconda/bin/conda list -n rumenEnv --export > conda_packages.txt
-anaconda/bin/conda create -y -n rumenEnv --file conda_packages.txt -c bioconda -c r -c biobuilds
-source anaconda/bin/activate rumenEnv
+# anaconda/bin/conda list -n qiime --export > conda_qiime_packages.txt
+# anaconda/bin/conda list -n r --export > conda_r_packages.txt
+anaconda/bin/conda create -y -n qiime --file conda_qiime_packages.txt
+anaconda/bin/conda create -y -n r --file conda_r_packages.txt
+source anaconda/bin/activate qiime
 
-wget -O anaconda/envs/rumenEnv/bin/usearch $1
-chmod 775 anaconda/envs/rumenEnv/bin/usearch
+wget -O anaconda/envs/qiime/bin/usearch $1
+chmod 775 anaconda/envs/qiime/bin/usearch
 
-Rscript -e "rmarkdown::render('acclimation.Rmd')"
-
-
-
+anaconda/envs/r/bin/Rscript -e "rmarkdown::render('acclimation.Rmd')"
 
 
 
