@@ -14,7 +14,6 @@ install.packages(c("biom", "vegan"), repos = "http://cran.us.r-project.org")
 source("http://bioconductor.org/biocLite.R")
 biocLite("Biostrings", suppressUpdates = T)
 biocLite("Heatplus", suppressUpdates = T)
-
 library(biom)
 library(vegan)
 library(tidyverse)
@@ -26,7 +25,6 @@ library(grid)
 library(gplots)
 library(RColorBrewer)
 library(Biostrings)
-
 ```
 
 ```{r knitr.settings, eval = T, echo = F, results = "hide"}
