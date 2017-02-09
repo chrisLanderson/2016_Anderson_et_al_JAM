@@ -9,7 +9,7 @@ This is an updated analysis of [Anderson et al. JAM manuscript]  (http://onlinel
 
 Recent studies have demonstrated RAMP, a complete starter feed, to have beneficial effects for animal performance. To understand if RAMP adaptation results in changes in the rumen bacterial community that can potentially affect animal performance, we investigated the dynamics of rumen bacterial community composition in corn‐adapted and RAMP‐adapted cattle.W e compared the bacterial community dynamics in corn and RAMP‐adapted using 16S rRNA gene amplicon sequencing.
 
-```{r, results = "hide", eval = T, echo = F}
+```{r, include = FALSE}
 install.packages(c("biom", "vegan"), repos = "http://cran.us.r-project.org")
 source("http://bioconductor.org/biocLite.R")
 biocLite(c("Biostrings", "Heatplus"), suppressUpdates = T)
@@ -28,7 +28,7 @@ library(RColorBrewer)
 library(Biostrings)
 ```
 
-```{r knitr.settings, eval = T, echo = F, results = "hide"}
+```{r knitr.settings, include = FALSE}
 opts_chunk$set("tidy" = T)
 opts_chunk$set("echo" = T)
 opts_chunk$set("eval" = T)
@@ -46,7 +46,7 @@ sessionInfo()
 
 Raw data is provided in the github repository, but needs to be uncompressed. Additionally, here we download the SILVA v119 reference files.
 
-```{r, engine="bash", results="hide"}
+```{r, engine = "bash", results = "hide"}
 tar -zxvf rumen_acclimation.tar.gz
 curl -LO 'http://www.mothur.org/w/images/2/27/Silva.nr_v119.tgz'
 tar -zxvf Silva.nr_v119.tgz
@@ -85,7 +85,7 @@ writeXStringSet(seqs, "qc_trim_rc_format.fasta", format = "fasta")
  
 Use UPARSE suite of tools to pick OTUs.
 
-```{r, engine="bash"}
+```{r, engine = "bash"}
 gzip -d gold.fasta.gz
 mkdir usearch_out
 
@@ -106,13 +106,13 @@ python usearch_python_scripts/uc2otutab.py usearch_out/otu_map.uc > otu_table.tx
 
 ## Assign and Summarize Taxonomy
 
-```{r, engine="bash"}
-assign_taxonomy.py -i usearch_out/otus2.fasta -t anaconda/envs/rumenEnv/lib/python2.7/site-packages/qiime_default_reference/gg_13_8_otus/taxonomy/97_otu_taxonomy.txt -r anaconda/envs/rumenEnv/lib/python2.7/site-packages/qiime_default_reference/gg_13_8_otus/rep_set/97_otus.fasta -o assign_taxa -m mothur
+```{r, engine = "bash"}
+assign_taxonomy.py -i usearch_out/otus2.fasta -t anaconda/envs/qiime/lib/python2.7/site-packages/qiime_default_reference/gg_13_8_otus/taxonomy/97_otu_taxonomy.txt -r anaconda/envs/qiime/lib/python2.7/site-packages/qiime_default_reference/gg_13_8_otus/rep_set/97_otus.fasta -o assign_taxa -m mothur
 ```
 
 Add assigned taxa to the OTU table with the column header "taxonomy" and convert the resulting file to biom format.
 
-```{r, engine='bash'}
+```{r, engine = 'bash'}
 awk 'NR==1; NR > 1 {print $0 | "sort"}' otu_table.txt > otu_table_sort.txt 
 
 sort assign_taxa/otus2_tax_assignments.txt > assign_taxa/otus2_tax_assignments_sort.txt
@@ -140,7 +140,7 @@ biom summarize-table -i otu_table_tax_filter.biom -o otu_table_tax_filter_summar
 
 Align the sequences using the SILVA reference within mothur and view the alignment summary.
 
-```{r, engine='bash', results='hide'}
+```{r, engine = 'bash', results = 'hide'}
 mothur "#align.seqs(fasta=usearch_out/otus2.fasta, reference=silva.nr_v119.align)"
 
 mv usearch_out/otus2.align ./
@@ -239,11 +239,11 @@ rare_df <- rare_df %>%
   mutate_at(vars(-treatment), as.double) %>% 
   mutate(diet = if_else(str_detect(treatment, "^C"), "Corn", "RAMP")) %>%
   mutate(plot_color = case_when(
-    str_detect(treatment, ("[CR]1")) ~ "#FF0000",
-    str_detect(treatment, ("[CR]2")) ~ "#BF003F",
-    str_detect(treatment, ("[CR]3")) ~ "#7F007F",
-    str_detect(treatment, ("[CR]4")) ~ "#3F00BF",
-    str_detect(treatment, ("[CR]F")) ~ "#0000FF"
+    str_detect(rare_df$treatment, ("[CR]1")) ~ "#FF0000",
+    str_detect(rare_df$treatment, ("[CR]2")) ~ "#BF003F",
+    str_detect(rare_df$treatment, ("[CR]3")) ~ "#7F007F",
+    str_detect(rare_df$treatment, ("[CR]4")) ~ "#3F00BF",
+    str_detect(rare_df$treatment, ("[CR]F")) ~ "#0000FF"
   )) %>% 
   group_by(diet)
 

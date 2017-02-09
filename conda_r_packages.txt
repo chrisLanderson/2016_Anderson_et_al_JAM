@@ -47,6 +47,7 @@ r-dplyr=0.5.0=r3.3.2_0
 r-evaluate=0.10=r3.3.2_0
 r-forcats=0.1.1=r3.3.2_0
 r-foreign=0.8_67=r3.3.2_0
+r-formatr=1.4=r3.3.2_0
 r-gdata=2.17.0=r3.3.2_0
 r-ggplot2=2.2.0=r3.3.2_0
 r-gplots=3.0.1=r3.3.2_0
