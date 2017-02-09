@@ -12,8 +12,7 @@ Recent studies have demonstrated RAMP, a complete starter feed, to have benefici
 ```{r, results = "hide", eval = T, echo = F}
 install.packages(c("biom", "vegan"), repos = "http://cran.us.r-project.org")
 source("http://bioconductor.org/biocLite.R")
-biocLite("Biostrings", suppressUpdates = T)
-biocLite("Heatplus", suppressUpdates = T)
+biocLite(c("Biostrings", "Heatplus"), suppressUpdates = T)
 library(biom)
 library(vegan)
 library(tidyverse)
