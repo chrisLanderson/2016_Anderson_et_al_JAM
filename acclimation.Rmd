@@ -315,6 +315,8 @@ Investigate the influence of Corn and RAMP based treatments on beta diversity in
 ```{r, engine='bash'}
 biom summarize-table -i otu_table_tax_final.biom -o otu_table_tax_final_summary.txt
 
+biom convert -i otu_table_tax_final.biom -o otu_table_tax_final.json.biom --to-json --table-type="OTU table"
+
 beta_diversity_through_plots.py -i otu_table_tax_final.biom -o beta_div -t otus2.phylip.tre -m mapping.txt -p qiime_parameters_working.txt -e 2160
 
 split_otu_table.py -i otu_table_tax_final.biom -o split_total -m mapping.txt -f Diet
@@ -328,7 +330,7 @@ beta_diversity_through_plots.py -i split_total/otu_table_tax_final__Diet_Corn__.
 beta_diversity_through_plots.py -i split_total/otu_table_tax_final__Diet_RAMP__.biom -o ramp_beta_div -t otus2.phylip.tre -m mapping.txt -p qiime_parameters_working.txt -e 2959
 ```
 
-We use PERMANOVA with the unweighted UNIFRAC distance matrix to identify changes in microbial community structure between treatment groups in those animals fed RAMP and the corn-based diet. Additioanlly, we check that the data does not violate the assumptions of PERMANOVA. However, because there is no variance within the corn-based treatment group due to low sample numbers (that is, within a group there is only one value, i.e. C1-C1 distance, C2-C2 distance, etc.), the results testing a violation of the assumptions of PERMANOVA are unreliable.
+We use PERMANOVA with the unweighted UNIFRAC distance matrix to identify changes in microbial community structure between step-up treatment groups in those animals fed RAMP and the corn-based diet. Additioanlly, we check that the data does not violate the assumptions of PERMANOVA. However, because there is no variance within the corn-based treatment group due to low sample numbers (that is, within a group there is only one distance value because *n* = 2, i.e. C1-C1 distance, C2-C2 distance, etc.), the results testing a violation of the assumptions of PERMANOVA are unreliable.
 
 ```{r}
 set.seed(11)
@@ -526,7 +528,9 @@ ramp_unweighted_tidy %>%
 First, make venn diagrams dislaying the distribution of OTUs between steup up diets within the RAMP and corn-based treatment.
 
 ```{r, engine='bash'}
-collapse_samples.py -b otu_table_tax_family.biom -m mapping.txt --output_biom_fp otu_table_collapse_samples.biom --output_mapping_fp mapping_collapse.txt --collapse_fields Treatment --collapse_mode sum
+collapse_samples.py -b otu_table_tax_final.biom -m mapping.txt --output_biom_fp otu_table_collapse_samples.biom --output_mapping_fp mapping_collapse.txt --collapse_fields Treatment --collapse_mode sum
+
+biom convert -i otu_table_collapse_samples.biom -o otu_table_collapse_samples.json.biom --to-json --table-type="OTU table"
 
 split_otu_table.py -i otu_table_collapse_samples.biom -m mapping_collapse.txt -f Diet -o split_collapse_samples
 
@@ -588,7 +592,7 @@ share_otu_tidy <- share_otu %>%
 Write shared number of sequences between treatments to file.
 
 ```{r}
-collapse_biom <- read_biom("otu_table_collapse_samples.biom")
+collapse_biom <- read_biom("otu_table_collapse_samples.json.biom")
 collapse_df <- as_data_frame(as(biom_data(collapse_biom), "matrix"))
 collapse_tib <- as_tibble(rownames_to_column(collapse_df))
 collapse_tidy <- collapse_tib %>% 
@@ -604,11 +608,11 @@ combn_output <- combn(unique(collapse_tidy$sample), 2, simplify = FALSE, FUN = s
 ## OTU Heatmap
 
 ```{r}
-otu_table_biom <- read_biom("otu_table_tax_final.biom")
-otu_table <- as_data_frame(as(biom_data(otu_table_biom), "matrix"))
+otu_table_biom <- read_biom("otu_table_tax_final.json.biom")
+otu_table <- as.data.frame(as(biom_data(otu_table_biom), "matrix"))
 row.names(otu_table) <- otu_table$OTU.ID
 colnames(otu_table) <- c("CF_332", "R3_259", "R2_343", "R4_343", "R4_259", "C3_346", "C4_332", "R1_222", "CF_346", "RF_343", "RF_222", "C3_332", "R2_222", "R1_343", "R3_343", "C1_346", "C2_332", "R2_259", "R3_222", "C1_332", "C2_346", "R4_222", "RF_259", "R1_259", "C4_346")
-otu_table_trans <- as_data_frame(t(otu_table))
+otu_table_trans <- as.data.frame(t(otu_table))
 otu_table_rel <- otu_table_trans/rowSums(otu_table_trans)
 scalewhiteblack <- colorRampPalette(c("white", "black"), space = "rgb")(100)
 otu_dist <- vegdist(otu_table_rel, method = "bray")
